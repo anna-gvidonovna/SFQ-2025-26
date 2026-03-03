@@ -316,39 +316,39 @@ def render_interp(title: str, rules: list[str]) -> None:
 
 def render_formula_block(kind: str) -> None:
     if kind == "anova":
-        st.markdown("**Ключевые формулы:**")
-        st.latex(r"\eta^2=\frac{SS_{between}}{SS_{total}}")
-        st.caption(
-            "ANOVA проверяет различия средних между программами, "
-            "а Kruskal-Wallis — различия по рангам (непараметрический подход)."
-        )
+        with st.expander("Формулы и обозначения (ANOVA / Kruskal)", expanded=False):
+            st.latex(r"\eta^2=\frac{SS_{between}}{SS_{total}}")
+            st.caption(
+                "ANOVA проверяет различия средних между программами, "
+                "а Kruskal-Wallis — различия по рангам (непараметрический подход)."
+            )
         return
 
     if kind == "spearman":
-        st.markdown("**Формула корреляции Спирмена:**")
-        st.latex(r"\rho_s=\mathrm{corr}(\mathrm{rank}(X),\mathrm{rank}(Y))")
-        st.caption("Метод использует ранги, поэтому устойчивее для порядковых шкал и ненормальных распределений.")
+        with st.expander("Формулы и обозначения (Спирмен)", expanded=False):
+            st.latex(r"\rho_s=\mathrm{corr}(\mathrm{rank}(X),\mathrm{rank}(Y))")
+            st.caption("Метод использует ранги, поэтому устойчивее для порядковых шкал и ненормальных распределений.")
         return
 
     if kind == "nps":
-        st.markdown("**Формула NPS:**")
-        st.latex(r"\mathrm{NPS}=\%Promoters-\%Detractors")
-        st.caption("Границы сегментов: Promoters = 9–10, Passives = 7–8, Detractors = 0–6.")
+        with st.expander("Формулы и обозначения (NPS)", expanded=False):
+            st.latex(r"\mathrm{NPS}=\%Promoters-\%Detractors")
+            st.caption("Границы сегментов: Promoters = 9–10, Passives = 7–8, Detractors = 0–6.")
         return
 
     if kind == "csi":
-        st.markdown("**Математические формулы CSI:**")
-        st.latex(r"\mathrm{CSI}_{i,b} = \frac{\bar{S}_{i,b}\cdot\bar{I}_{i,b}}{16}\cdot 100")
-        st.latex(r"\bar{S}_{i,b}=\frac{1}{K_b}\sum_{k=1}^{K_b} S_{i,b,k}, \quad \bar{I}_{i,b}=\frac{1}{K_b}\sum_{k=1}^{K_b} I_{i,b,k}")
-        st.latex(r"\mathrm{CSI}^{\mathrm{overall}}_i = \frac{1}{B_i}\sum_{b=1}^{B_i}\mathrm{CSI}_{i,b}")
-        st.markdown("Обозначения индексов:")
-        st.markdown("- `i` — респондент.")
-        st.markdown("- `b` — блок (`Куратор`, `Преподавательский состав`, `Программа`, `Учебный отдел`).")
-        st.markdown("- `k` — отдельный критерий внутри блока.")
-        st.caption(
-            "Шкалы удовлетворенности и важности — 1..4, поэтому нормирующий коэффициент равен 16 (=4×4). "
-            "При пропусках используется среднее по доступным пунктам блока."
-        )
+        with st.expander("Формулы и обозначения (CSI)", expanded=False):
+            st.latex(r"\mathrm{CSI}_{i,b} = \frac{\bar{S}_{i,b}\cdot\bar{I}_{i,b}}{16}\cdot 100")
+            st.latex(r"\bar{S}_{i,b}=\frac{1}{K_b}\sum_{k=1}^{K_b} S_{i,b,k}, \quad \bar{I}_{i,b}=\frac{1}{K_b}\sum_{k=1}^{K_b} I_{i,b,k}")
+            st.latex(r"\mathrm{CSI}^{\mathrm{overall}}_i = \frac{1}{B_i}\sum_{b=1}^{B_i}\mathrm{CSI}_{i,b}")
+            st.markdown("Обозначения индексов:")
+            st.markdown("- `i` — респондент.")
+            st.markdown("- `b` — блок (`Куратор`, `Преподавательский состав`, `Программа`, `Учебный отдел`).")
+            st.markdown("- `k` — отдельный критерий внутри блока.")
+            st.caption(
+                "Шкалы удовлетворенности и важности — 1..4, поэтому нормирующий коэффициент равен 16 (=4×4). "
+                "При пропусках используется среднее по доступным пунктам блока."
+            )
         return
 
 
