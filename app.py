@@ -21,6 +21,30 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+px.defaults.template = "plotly_white"
+px.defaults.color_discrete_sequence = ["#1D4ED8", "#0EA5E9", "#14B8A6", "#22C55E", "#F59E0B", "#EF4444", "#A855F7"]
+
+st.markdown(
+    """
+    <style>
+    .block-container {
+        padding-top: 1.0rem;
+        padding-bottom: 1.0rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+        max-width: 1400px;
+    }
+    @media (max-width: 768px) {
+        .block-container {
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 SCORE_IMP_PAIRS = [
     ("fac_support_score", "fac_support_imp"),
@@ -36,6 +60,19 @@ SCORE_IMP_PAIRS = [
     ("coord_timely_score", "coord_timely_imp"),
     ("coord_help_score", "coord_help_imp"),
 ]
+
+CSI_BLOCKS = {
+    "Куратор": (["cur_timely_score", "cur_help_score"], ["cur_timely_imp", "cur_help_imp"]),
+    "Преподавательский состав": (["fac_support_score", "fac_clarity_score"], ["fac_support_imp", "fac_clarity_imp"]),
+    "Программа": (
+        ["prog_clarity_score", "prog_deadlines_score", "prog_relevance_score", "prog_workload_score"],
+        ["prog_clarity_imp", "prog_deadlines_imp", "prog_relevance_imp", "prog_workload_imp"],
+    ),
+    "Учебный отдел": (
+        ["coord_respect_score", "coord_results_score", "coord_timely_score", "coord_help_score"],
+        ["coord_respect_imp", "coord_results_imp", "coord_timely_imp", "coord_help_imp"],
+    ),
+}
 
 BLOCKS = {
     "faculty": ["fac_support_score", "fac_clarity_score"],
@@ -140,6 +177,7 @@ class FilterState:
     programs: list[str]
     years: list[str]
     schools: list[str]
+    short_program_labels: bool
 
 
 @st.cache_data(show_spinner=False)
@@ -170,6 +208,33 @@ def round_df(df: pd.DataFrame, decimals: int = ROUND_DECIMALS) -> pd.DataFrame:
     out = df.copy()
     num = out.select_dtypes(include=[np.number]).columns
     out[num] = out[num].round(decimals)
+    return out
+
+
+def shorten_program_name(name: str, max_len: int = 34) -> str:
+    if pd.isna(name):
+        return name
+    s = str(name).strip()
+    replacements = {
+        "в креативных индустриях": "в КИ",
+        "и городских общественных пространств": "и городских пространств",
+        "Менеджмент в креативных индустриях (сетевая программа)": "Менеджмент в КИ (сетевая)",
+        "Предпринимательство и продюсирование в креативных индустриях": "Предпринимательство и продюсирование в КИ",
+        "Бренд-менеджмент и маркетинг в креативных индустриях": "Бренд-менеджмент и маркетинг в КИ",
+    }
+    for old, new in replacements.items():
+        s = s.replace(old, new)
+    if len(s) <= max_len:
+        return s
+    return s[: max_len - 1].rstrip() + "…"
+
+
+def add_program_display(df: pd.DataFrame, short_labels: bool) -> pd.DataFrame:
+    out = df.copy()
+    if "program" in out.columns:
+        out["program_display"] = out["program"].map(
+            lambda x: shorten_program_name(x) if short_labels else x
+        )
     return out
 
 
@@ -238,6 +303,12 @@ def get_descriptive_metrics(df: pd.DataFrame) -> list[str]:
     return chosen + others
 
 
+def render_interp(title: str, rules: list[str]) -> None:
+    with st.expander(title, expanded=False):
+        for rule in rules:
+            st.markdown(f"- {rule}")
+
+
 def safe_numeric(df: pd.DataFrame, cols: Iterable[str]) -> pd.DataFrame:
     out = df.copy()
     for col in cols:
@@ -268,8 +339,18 @@ def build_filters(df: pd.DataFrame) -> FilterState:
     selected_programs = st.sidebar.multiselect("Программа", programs, default=programs)
     selected_years = st.sidebar.multiselect("Курс", years, default=years)
     selected_schools = st.sidebar.multiselect("Школа", schools, default=schools)
+    short_program_labels = st.sidebar.checkbox(
+        "Сокращать длинные названия программ",
+        value=True,
+        help="Укорачивает подписи в графиках/легендах для лучшей читаемости, особенно на телефоне.",
+    )
 
-    return FilterState(programs=selected_programs, years=selected_years, schools=selected_schools)
+    return FilterState(
+        programs=selected_programs,
+        years=selected_years,
+        schools=selected_schools,
+        short_program_labels=short_program_labels,
+    )
 
 
 def apply_filters(df: pd.DataFrame, f: FilterState) -> pd.DataFrame:
@@ -305,22 +386,39 @@ def render_overview(df: pd.DataFrame) -> None:
         c5, c6 = st.columns(2)
         c5.metric("Минимум NPS", f"{df['nps'].min():.2f}", help="Минимальное значение NPS в текущем срезе.")
         c6.metric("Максимум NPS", f"{df['nps'].max():.2f}", help="Максимальное значение NPS в текущем срезе.")
+    render_interp(
+        "Как интерпретировать обзор",
+        [
+            "Если число ответов по программе низкое, то сравнения по этой программе менее надежны.",
+            "Если медиана NPS существенно ниже 7, то в срезе преобладает нейтральный/негативный опыт.",
+            "Если минимум очень низкий, а максимум высокий, то мнения респондентов поляризованы.",
+        ],
+    )
 
     if "program" in df.columns:
         st.caption("График: размер выборки по программам.")
-        counts = df["program"].value_counts().sort_values(ascending=False).reset_index()
-        counts.columns = ["program", "n"]
+        counts = (
+            df.groupby("program", dropna=False)["program_display"]
+            .first()
+            .to_frame("program_display")
+            .join(df["program"].value_counts().rename("n"), how="left")
+            .reset_index()
+            .rename(columns={"index": "program"})
+        )
+        counts = counts.sort_values("n", ascending=True)
         fig = px.bar(
             counts,
-            x="program",
-            y="n",
+            x="n",
+            y="program_display",
+            orientation="h",
             title="Размер выборки по программам",
             color="n",
             color_continuous_scale="Teal",
-            labels={"program": "Программа", "n": "Количество ответов"},
+            labels={"program_display": "Программа", "n": "Количество ответов"},
+            hover_data={"program": True, "program_display": False, "n": ":.0f"},
         )
-        fig.update_layout(xaxis_tickangle=-25, height=460)
-        st.plotly_chart(fig, use_container_width=True)
+        fig.update_layout(height=560, yaxis_title="")
+        st.plotly_chart(fig, width='stretch')
 
     if "nps" in df.columns:
         st.caption("График: распределение NPS (0-10).")
@@ -334,7 +432,7 @@ def render_overview(df: pd.DataFrame) -> None:
             labels={"nps": "NPS"},
         )
         fig.update_layout(height=420)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
 
 
 def render_descriptives(df: pd.DataFrame) -> None:
@@ -357,6 +455,15 @@ def render_descriptives(df: pd.DataFrame) -> None:
     if not selected:
         st.info("Выберите хотя бы одну метрику.")
         return
+    render_interp(
+        "Как интерпретировать описательные статистики",
+        [
+            "Если среднее и медиана заметно отличаются, то распределение асимметрично (есть перекос).",
+            "Если CI 95% узкий, то оценка среднего более стабильна; если широкий, то неопределенность выше.",
+            "Если min/max сильно отличаются от Q25/Q75, то возможны выбросы или неоднородные подгруппы.",
+            "Если CI по программам почти не перекрываются, то различия между программами вероятно существенные.",
+        ],
+    )
 
     rows = []
     for col in selected:
@@ -380,7 +487,7 @@ def render_descriptives(df: pd.DataFrame) -> None:
     stat_df = pd.DataFrame(rows).sort_values("Среднее", ascending=False)
     stat_df = round_df(stat_df)
     st.caption("Таблица: описательные статистики по выбранным метрикам.")
-    st.dataframe(stat_df, use_container_width=True)
+    st.dataframe(stat_df, width='stretch')
 
     st.caption("График: средние значения с bootstrap 95% доверительными интервалами.")
     fig = px.scatter(
@@ -395,7 +502,7 @@ def render_descriptives(df: pd.DataFrame) -> None:
         title="Средние значения и доверительные интервалы",
     )
     fig.update_layout(height=460, yaxis_title="")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
     metric_for_group = st.selectbox(
         "Метрика по программам",
@@ -411,6 +518,7 @@ def render_descriptives(df: pd.DataFrame) -> None:
         grp_rows.append(
             {
                 "program": prog,
+                "program_display": g["program_display"].iloc[0] if "program_display" in g.columns else prog,
                 "n": n,
                 "mean": mean,
                 "ci_low": lo,
@@ -426,6 +534,7 @@ def render_descriptives(df: pd.DataFrame) -> None:
         grp.rename(
             columns={
                 "program": "Программа",
+                "program_display": "Короткое имя",
                 "n": "n",
                 "mean": "Среднее",
                 "ci_low": "CI нижняя",
@@ -434,37 +543,40 @@ def render_descriptives(df: pd.DataFrame) -> None:
                 "max": "Максимум",
             }
         ),
-        use_container_width=True,
+        width='stretch',
     )
 
     st.caption("График: средние по программам с bootstrap 95% CI.")
     fig = px.scatter(
         grp,
         x="mean",
-        y="program",
+        y="program_display",
         error_x=grp["ci_high"] - grp["mean"],
         error_x_minus=grp["mean"] - grp["ci_low"],
         size="n",
         color="mean",
         color_continuous_scale="Viridis",
         title=f"{label(metric_for_group)}: среднее по программам",
-        labels={"program": "Программа", "mean": "Среднее"},
+        labels={"program_display": "Программа", "mean": "Среднее"},
+        hover_data={"program": True, "program_display": False, "mean": ":.2f", "n": True},
     )
     fig.update_layout(height=620, yaxis_title="")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
     st.caption("График: распределение значений выбранной метрики по программам.")
     fig = px.violin(
         df,
-        x="program",
-        y=metric_for_group,
+        y="program_display",
+        x=metric_for_group,
+        orientation="h",
         box=True,
         points="all",
         title=f"{label(metric_for_group)}: распределение по программам",
-        labels={"program": "Программа", metric_for_group: label(metric_for_group)},
+        labels={"program_display": "Программа", metric_for_group: label(metric_for_group)},
+        hover_data={"program": True, "program_display": False},
     )
-    fig.update_layout(height=520, xaxis_tickangle=-30)
-    st.plotly_chart(fig, use_container_width=True)
+    fig.update_layout(height=620, yaxis_title="")
+    st.plotly_chart(fig, width='stretch')
 
 
 def render_program_comparison(df: pd.DataFrame) -> None:
@@ -490,6 +602,16 @@ def render_program_comparison(df: pd.DataFrame) -> None:
         format_func=label,
         help="Выберите метрику, по которой нужно сравнить программы.",
     )
+    render_interp(
+        "Как интерпретировать сравнение программ",
+        [
+            "Если ANOVA p-value < 0.05, то средние по программам статистически различаются.",
+            "Если Kruskal p-value < 0.05, то различия устойчивы и в непараметрическом тесте.",
+            "Если Levene p-value < 0.05, то дисперсии неоднородны; в выводах опирайтесь на Kruskal/Dunn.",
+            "Если Eta^2 ~ 0.01/0.06/0.14+, то эффект обычно трактуют как малый/средний/крупный.",
+            "Если в Dunn p-value < 0.05 для пары программ, то именно эта пара различается значимо.",
+        ],
+    )
 
     min_n = st.slider(
         "Минимальный размер группы для тестов",
@@ -501,7 +623,9 @@ def render_program_comparison(df: pd.DataFrame) -> None:
     )
     vc = df["program"].value_counts()
     valid_programs = vc[vc >= min_n].index
-    d = df[df["program"].isin(valid_programs)][["program", selected_metric]].dropna()
+    keep_cols = ["program", "program_display", selected_metric]
+    keep_cols = [c for c in keep_cols if c in df.columns]
+    d = df[df["program"].isin(valid_programs)][keep_cols].dropna()
     st.caption(f"В анализе: программ = {d['program'].nunique()}, наблюдений = {len(d)}.")
 
     if d["program"].nunique() < 2:
@@ -528,23 +652,25 @@ def render_program_comparison(df: pd.DataFrame) -> None:
     left, right = st.columns(2)
     with left:
         st.caption("Таблица: результаты ANOVA.")
-        st.dataframe(round_df(anova_tbl), use_container_width=True)
+        st.dataframe(round_df(anova_tbl), width='stretch')
     with right:
         st.caption("Таблица: Dunn post-hoc, p-value с Holm-коррекцией.")
-        st.dataframe(round_df(dunn), use_container_width=True)
+        st.dataframe(round_df(dunn), width='stretch')
 
     st.caption("График: распределение выбранной метрики по программам.")
     fig = px.box(
         d,
-        x="program",
-        y=selected_metric,
+        y="program_display",
+        x=selected_metric,
+        orientation="h",
         points="all",
-        color="program",
+        color="program_display",
         title=f"{label(selected_metric)} по программам",
-        labels={"program": "Программа", selected_metric: label(selected_metric)},
+        labels={"program_display": "Программа", selected_metric: label(selected_metric)},
+        hover_data={"program": True, "program_display": False},
     )
-    fig.update_layout(showlegend=False, height=520, xaxis_tickangle=-30)
-    st.plotly_chart(fig, use_container_width=True)
+    fig.update_layout(showlegend=False, height=620, yaxis_title="")
+    st.plotly_chart(fig, width='stretch')
 
 
 def render_correlations(df: pd.DataFrame) -> None:
@@ -563,6 +689,15 @@ def render_correlations(df: pd.DataFrame) -> None:
     if len(selected) < 2:
         st.info("Выберите минимум 2 столбца.")
         return
+    render_interp(
+        "Как интерпретировать корреляции",
+        [
+            "Если коэффициент Спирмена > 0, то при росте одной метрики другая обычно тоже растет.",
+            "Если коэффициент Спирмена < 0, то при росте одной метрики другая обычно снижается.",
+            "Если |rho| около 0.1/0.3/0.5+, то связь часто трактуют как слабую/умеренную/сильную.",
+            "Если связь высокая, это не доказывает причинность; проверяйте контекст и возможные скрытые факторы.",
+        ],
+    )
 
     corr = df[selected].corr(method="spearman").round(ROUND_DECIMALS)
     corr_display = corr.copy()
@@ -579,7 +714,7 @@ def render_correlations(df: pd.DataFrame) -> None:
         title="Корреляционная матрица (Spearman)",
     )
     fig.update_layout(height=680)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
     target = st.selectbox(
         "Целевая метрика",
@@ -591,7 +726,7 @@ def render_correlations(df: pd.DataFrame) -> None:
     with_target = corr[target].drop(target).sort_values(ascending=False).rename("rho").to_frame()
     with_target.index = [label(i) for i in with_target.index]
     st.caption("Таблица: коэффициенты корреляции с целевой метрикой.")
-    st.dataframe(round_df(with_target), use_container_width=True)
+    st.dataframe(round_df(with_target), width='stretch')
 
     top_pos = with_target.head(5).reset_index().rename(columns={"index": "Показатель"})
     top_neg = with_target.tail(5).reset_index().rename(columns={"index": "Показатель"})
@@ -608,7 +743,7 @@ def render_correlations(df: pd.DataFrame) -> None:
         labels={"rho": "Коэффициент Спирмена"},
     )
     fig.update_layout(height=420, yaxis_title="")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
 
 def render_priority_matrix(df: pd.DataFrame) -> None:
@@ -643,6 +778,15 @@ def render_priority_matrix(df: pd.DataFrame) -> None:
     if not rows:
         st.warning("В текущем срезе нет доступных пар score/importance.")
         return
+    render_interp(
+        "Как интерпретировать матрицу приоритетов",
+        [
+            "Если важность выше средней и оценка ниже средней (верхний левый квадрант), то это зона первоочередного улучшения.",
+            "Если важность и оценка обе высокие (верхний правый), то это сильные стороны, которые стоит поддерживать.",
+            "Если разрыв (важность - оценка) большой и положительный, то критерий недоудовлетворен.",
+            "Если разрыв около нуля, то ожидания и фактическая оценка сбалансированы.",
+        ],
+    )
 
     m = round_df(pd.DataFrame(rows))
     score_mid = m["Средняя оценка"].mean()
@@ -664,11 +808,11 @@ def render_priority_matrix(df: pd.DataFrame) -> None:
     fig.add_hline(imp_mid, line_dash="dash", line_color="gray")
     fig.update_traces(textposition="top center")
     fig.update_layout(height=560)
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width='stretch')
 
     st.caption("Таблица: приоритеты улучшений (по убыванию разрыва).")
     m = m.sort_values("Разрыв (важность - оценка)", ascending=False)
-    st.dataframe(round_df(m), use_container_width=True)
+    st.dataframe(round_df(m), width='stretch')
 
 
 def render_nps(df: pd.DataFrame) -> None:
@@ -677,6 +821,15 @@ def render_nps(df: pd.DataFrame) -> None:
     if "nps" not in df.columns:
         st.warning("Столбец `nps` не найден.")
         return
+    render_interp(
+        "Как интерпретировать NPS",
+        [
+            "Если NPS > 0, то доля промоутеров выше доли критиков; если NPS < 0, ситуация обратная.",
+            "Если доля критиков растет у конкретной программы, то стоит приоритизировать качественный разбор этой программы.",
+            "Если NPS сильно различается между программами, то проблемы/сильные стороны локальны, а не системны.",
+            "Если общий NPS высокий, но есть низкий минимум, то в выборке могут быть отдельные проблемные сегменты.",
+        ],
+    )
 
     d = df.copy()
     d["segment"] = np.where(d["nps"] >= 9, "Промоутер", np.where(d["nps"] >= 7, "Пассив", "Критик"))
@@ -704,43 +857,184 @@ def render_nps(df: pd.DataFrame) -> None:
             color_discrete_map={"Промоутер": "#2ca02c", "Пассив": "#ffbf00", "Критик": "#d62728"},
         )
         fig.update_layout(title="Структура NPS по сегментам", height=430)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
     with right:
         if "program" in d.columns:
             st.caption("График: состав NPS-сегментов по программам.")
-            by_prog = d.groupby(["program", "segment"]).size().rename("n").reset_index()
-            tot = d.groupby("program").size().rename("total").reset_index()
-            by_prog = by_prog.merge(tot, on="program", how="left")
-            by_prog["pct"] = by_prog["n"] / by_prog["total"] * 100
+            by_prog = d.groupby(["program", "program_display", "segment"]).size().rename("n").reset_index()
+            tot = d.groupby(["program", "program_display"]).size().rename("total").reset_index()
+            by_prog = by_prog.merge(tot, on=["program", "program_display"], how="left")
+            by_prog["pct"] = (by_prog["n"] / by_prog["total"] * 100).round(ROUND_DECIMALS)
             fig = px.bar(
                 by_prog,
-                x="program",
-                y="pct",
+                y="program_display",
+                x="pct",
+                orientation="h",
                 color="segment",
                 barmode="stack",
                 title="Состав NPS по программам",
-                labels={"program": "Программа", "pct": "%"},
+                labels={"program_display": "Программа", "pct": "%"},
+                hover_data={"program": True, "program_display": False, "pct": ":.2f"},
             )
-            fig.update_layout(height=430, xaxis_tickangle=-30)
-            st.plotly_chart(fig, use_container_width=True)
+            fig.update_layout(height=620, yaxis_title="")
+            fig.update_yaxes(tickformat=".2f")
+            fig.update_traces(hovertemplate="Программа: %{y}<br>Доля: %{x:.2f}%<extra></extra>")
+            st.plotly_chart(fig, width='stretch')
 
     if "program" in d.columns:
         st.caption("График: NPS по программам.")
-        nps_by_program = d.groupby("program").apply(
-            lambda x: (x["nps"].ge(9).mean() - x["nps"].le(6).mean()) * 100
-        ).rename("nps").reset_index().round(ROUND_DECIMALS)
+        nps_by_program = (
+            d.groupby(["program", "program_display"])["nps"]
+            .agg(
+                promoters_pct=lambda s: s.ge(9).mean() * 100,
+                detractors_pct=lambda s: s.le(6).mean() * 100,
+            )
+            .reset_index()
+        )
+        nps_by_program["nps"] = nps_by_program["promoters_pct"] - nps_by_program["detractors_pct"]
+        nps_by_program = nps_by_program[["program", "program_display", "nps"]].round(ROUND_DECIMALS)
         fig = px.bar(
             nps_by_program.sort_values("nps"),
             x="nps",
-            y="program",
+            y="program_display",
             orientation="h",
             color="nps",
             color_continuous_scale="RdYlGn",
             title="NPS по программам",
-            labels={"program": "Программа", "nps": "NPS"},
+            labels={"program_display": "Программа", "nps": "NPS"},
+            hover_data={"program": True, "program_display": False, "nps": ":.2f"},
         )
         fig.update_layout(height=620, yaxis_title="")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
+
+
+def compute_csi_frame(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    CSI по методике пользователя:
+    CSI = (средняя удовлетворенность * средняя важность) / 16 * 100
+    где обе шкалы 1-4.
+    """
+    out = df.copy()
+    csi_cols = []
+    for block_name, (score_cols, imp_cols) in CSI_BLOCKS.items():
+        s_cols = [c for c in score_cols if c in out.columns]
+        i_cols = [c for c in imp_cols if c in out.columns]
+        if not s_cols or not i_cols:
+            continue
+        s_mean = out[s_cols].mean(axis=1)
+        i_mean = out[i_cols].mean(axis=1)
+        csi_col = f"csi_{block_name}"
+        out[csi_col] = (s_mean * i_mean / 16.0) * 100.0
+        csi_cols.append(csi_col)
+
+    if csi_cols:
+        out["csi_Общий"] = out[csi_cols].mean(axis=1)
+    return out
+
+
+def render_csi(df: pd.DataFrame) -> None:
+    st.subheader("CSI (индекс удовлетворенности)")
+    st.info("Что здесь: расчет CSI по блокам и общий CSI, методология и интерпретация.")
+
+    render_interp(
+        "Как считается CSI",
+        [
+            "Формула по вашей методике: CSI = (средняя удовлетворенность × средняя важность) / 16 × 100.",
+            "Коэффициент 16 используется, потому что шкалы удовлетворенности и важности обе от 1 до 4 (4×4=16).",
+            "CSI считается по блокам: Куратор, Преподавательский состав, Программа, Учебный отдел.",
+            "Общий CSI = среднее из доступных блоковых CSI у респондента.",
+        ],
+    )
+    render_interp(
+        "Как интерпретировать CSI",
+        [
+            "Если CSI ближе к 100, то высокий уровень удовлетворенности по важным для студентов критериям.",
+            "Если CSI растет после фильтрации по школе/курсу/программе, то в этом сегменте качество опыта выше.",
+            "Если высокий разрыв между блоками, то улучшения стоит приоритизировать в блоках с низким CSI.",
+            "Если CSI низкий и одновременно важность высокая, это сигнал о наиболее критичных точках сервиса.",
+        ],
+    )
+
+    d = compute_csi_frame(df)
+    csi_cols = [c for c in d.columns if c.startswith("csi_")]
+    if not csi_cols:
+        st.warning("Недостаточно данных для расчета CSI.")
+        return
+
+    pretty_map = {c: c.replace("csi_", "") for c in csi_cols}
+    summary_rows = []
+    for col in csi_cols:
+        vals = pd.to_numeric(d[col], errors="coerce").dropna()
+        if vals.empty:
+            continue
+        summary_rows.append(
+            {
+                "Блок CSI": pretty_map[col],
+                "n": int(vals.shape[0]),
+                "Среднее CSI": vals.mean(),
+                "Медиана CSI": vals.median(),
+                "Минимум CSI": vals.min(),
+                "Максимум CSI": vals.max(),
+                "Std": vals.std(),
+            }
+        )
+    csi_summary = round_df(pd.DataFrame(summary_rows).sort_values("Среднее CSI", ascending=False))
+    st.caption("Таблица: сводка CSI по блокам.")
+    st.dataframe(csi_summary, width="stretch")
+
+    plot_df = csi_summary.copy()
+    fig = px.bar(
+        plot_df.sort_values("Среднее CSI"),
+        x="Среднее CSI",
+        y="Блок CSI",
+        orientation="h",
+        color="Среднее CSI",
+        color_continuous_scale="Tealgrn",
+        title="Средний CSI по блокам",
+    )
+    fig.update_layout(height=420, yaxis_title="")
+    fig.update_xaxes(tickformat=".2f")
+    st.plotly_chart(fig, width="stretch")
+
+    selected_csi = st.selectbox(
+        "Блок CSI для сравнения по программам",
+        options=csi_cols,
+        format_func=lambda c: pretty_map[c],
+        help="Показывает распределение выбранного CSI по программам.",
+    )
+    by_prog = (
+        d.groupby(["program", "program_display"], dropna=False)[selected_csi]
+        .agg(["count", "mean", "median", "min", "max"])
+        .reset_index()
+        .rename(
+            columns={
+                "program": "Программа",
+                "program_display": "Короткое имя",
+                "count": "n",
+                "mean": "Среднее",
+                "median": "Медиана",
+                "min": "Минимум",
+                "max": "Максимум",
+            }
+        )
+    )
+    by_prog = round_df(by_prog.sort_values("Среднее", ascending=False))
+    st.caption("Таблица: CSI по программам (выбранный блок).")
+    st.dataframe(by_prog, width="stretch")
+
+    fig = px.box(
+        d.dropna(subset=[selected_csi]),
+        y="program_display",
+        x=selected_csi,
+        orientation="h",
+        points="all",
+        title=f"{pretty_map[selected_csi]}: распределение CSI по программам",
+        labels={"program_display": "Программа", selected_csi: "CSI"},
+        hover_data={"program": True, "program_display": False},
+    )
+    fig.update_layout(height=620, yaxis_title="")
+    fig.update_yaxes(tickformat=".2f")
+    st.plotly_chart(fig, width="stretch")
 
 
 def render_codebook() -> None:
@@ -789,10 +1083,10 @@ def main() -> None:
         st.error("После применения фильтров данных не осталось.")
         return
 
-    dashboard_df = add_block_features(dff)
+    dashboard_df = add_program_display(add_block_features(dff), short_labels=filters.short_program_labels)
 
     tabs = st.tabs(
-        ["Обзор", "Описательные", "Сравнение программ", "Корреляции", "Матрица приоритетов", "NPS", "Кодбук"]
+        ["Обзор", "Описательные", "Сравнение программ", "Корреляции", "Матрица приоритетов", "NPS", "CSI", "Кодбук"]
     )
     with tabs[0]:
         render_overview(dashboard_df)
@@ -807,6 +1101,8 @@ def main() -> None:
     with tabs[5]:
         render_nps(dashboard_df)
     with tabs[6]:
+        render_csi(dashboard_df)
+    with tabs[7]:
         render_codebook()
 
 
