@@ -194,6 +194,35 @@ def load_data(path: str) -> pd.DataFrame:
     return df
 
 
+@st.cache_data(show_spinner=False)
+def load_teachers_data(path: str) -> pd.DataFrame:
+    p = Path(path)
+    if not p.exists():
+        return pd.DataFrame()
+    df = pd.read_csv(p)
+
+    # Backward compatibility for Russian-column variant
+    ru_map = {
+        "Программа": "program",
+        "Школа": "school",
+        "Курс обучения": "year",
+        "Номер ответа": "resp_id",
+        "Преподаватель": "teacher",
+        "Оценка": "rating",
+    }
+    for src, dst in ru_map.items():
+        if src in df.columns and dst not in df.columns:
+            df = df.rename(columns={src: dst})
+
+    for col in ["program", "school", "year", "teacher"]:
+        if col not in df.columns:
+            df[col] = np.nan
+    if "rating" not in df.columns:
+        df["rating"] = np.nan
+    df["rating"] = pd.to_numeric(df["rating"], errors="coerce")
+    return df
+
+
 def load_codebook(path: str) -> str:
     p = Path(path)
     if p.exists():
@@ -348,6 +377,20 @@ def render_formula_block(kind: str) -> None:
             st.caption(
                 "Шкалы удовлетворенности и важности — 1..4, поэтому нормирующий коэффициент равен 16 (=4×4). "
                 "При пропусках используется среднее по доступным пунктам блока."
+            )
+        return
+
+    if kind == "teacher_bayes":
+        with st.expander("Формулы и обозначения (сглаженное среднее преподавателя)", expanded=False):
+            st.latex(r"\hat{\mu}_t=\frac{n_t\cdot\bar{x}_t + m\cdot\mu_0}{n_t+m}")
+            st.markdown("Обозначения:")
+            st.markdown("- `t` — преподаватель.")
+            st.markdown("- `n_t` — число оценок преподавателя.")
+            st.markdown("- `\\bar{x}_t` — обычное среднее преподавателя.")
+            st.markdown("- `\\mu_0` — глобальное среднее по текущему отфильтрованному срезу.")
+            st.markdown("- `m` — сила сглаживания (чем больше `m`, тем сильнее тянет к `\\mu_0`).")
+            st.caption(
+                "Это эмпирическое байесовское сглаживание, полезное при малом числе оценок у преподавателя."
             )
         return
 
@@ -1110,6 +1153,153 @@ def render_csi(df: pd.DataFrame) -> None:
     st.plotly_chart(fig, width="stretch")
 
 
+def render_teachers(df_teachers: pd.DataFrame) -> None:
+    st.subheader("Преподаватели")
+    st.info(
+        "Что здесь: оценки преподавателей в разрезах школы/программы/курса и рейтинг по конкретным преподавателям."
+    )
+    if df_teachers.empty or "rating" not in df_teachers.columns:
+        st.warning("Файл `data/processed/combined_teachers_agg.csv` не найден или пуст.")
+        return
+
+    d = df_teachers.dropna(subset=["rating"]).copy()
+    if d.empty:
+        st.warning("Нет оценок преподавателей в текущем срезе.")
+        return
+
+    render_formula_block("teacher_bayes")
+    m = st.slider(
+        "Сила байесовского сглаживания m",
+        min_value=1,
+        max_value=50,
+        value=8,
+        step=1,
+        help="Рекомендуется использовать сглаженное среднее при малом числе оценок.",
+    )
+
+    global_mean = float(d["rating"].mean())
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Оценок", f"{len(d):,}")
+    c2.metric("Преподавателей", f"{d['teacher'].nunique():,}")
+    c3.metric("Средняя оценка", f"{d['rating'].mean():.2f}")
+    c4.metric("Байесовская база μ0", f"{global_mean:.2f}")
+
+    st.markdown("### Разрез по сегментам")
+    dim = st.selectbox(
+        "Разрез",
+        ["school", "program", "year"],
+        format_func=lambda x: {"school": "Школа", "program": "Программа", "year": "Курс"}[x],
+    )
+
+    seg = (
+        d.groupby(dim, dropna=False)["rating"]
+        .agg(["count", "mean", "median", "min", "max", "std"])
+        .reset_index()
+        .rename(
+            columns={
+                dim: "Сегмент",
+                "count": "n",
+                "mean": "Среднее",
+                "median": "Медиана",
+                "min": "Минимум",
+                "max": "Максимум",
+                "std": "Std",
+            }
+        )
+    )
+    seg["Байес. среднее"] = ((seg["n"] * seg["Среднее"]) + (m * global_mean)) / (seg["n"] + m)
+    seg = round_df(seg.sort_values("Байес. среднее", ascending=False))
+    st.dataframe(seg, width="stretch")
+
+    seg_plot = seg.sort_values("Байес. среднее", ascending=True).head(25)
+    fig = px.bar(
+        seg_plot,
+        x="Байес. среднее",
+        y="Сегмент",
+        orientation="h",
+        color="n",
+        color_continuous_scale="Blues",
+        title="Сегменты: сглаженное среднее оценки преподавателей",
+        labels={"Байес. среднее": "Сглаженное среднее", "Сегмент": ""},
+    )
+    fig.update_xaxes(tickformat=".2f")
+    fig.update_layout(height=560, yaxis_title="")
+    st.plotly_chart(fig, width="stretch")
+
+    st.markdown("### Конкретные преподаватели")
+    min_n = st.slider("Минимум оценок у преподавателя", 1, 50, 5, 1)
+    teacher_stats = (
+        d.groupby("teacher", dropna=False)["rating"]
+        .agg(["count", "mean", "median", "min", "max", "std"])
+        .reset_index()
+        .rename(
+            columns={
+                "teacher": "Преподаватель",
+                "count": "n",
+                "mean": "Среднее",
+                "median": "Медиана",
+                "min": "Минимум",
+                "max": "Максимум",
+                "std": "Std",
+            }
+        )
+    )
+    teacher_stats["Байес. среднее"] = ((teacher_stats["n"] * teacher_stats["Среднее"]) + (m * global_mean)) / (
+        teacher_stats["n"] + m
+    )
+    teacher_stats = teacher_stats[teacher_stats["n"] >= min_n]
+    if teacher_stats.empty:
+        st.info("Нет преподавателей, удовлетворяющих минимальному числу оценок.")
+        return
+
+    teacher_stats = round_df(teacher_stats.sort_values("Байес. среднее", ascending=False))
+    st.dataframe(teacher_stats, width="stretch")
+
+    top_n_min = 1 if len(teacher_stats) < 5 else 5
+    top_n_max = min(40, len(teacher_stats))
+    top_n_default = min(20, top_n_max)
+    top_n = st.slider("Сколько преподавателей показать в графике", top_n_min, top_n_max, top_n_default)
+    top_teachers = teacher_stats.head(top_n).sort_values("Байес. среднее")
+    fig = px.bar(
+        top_teachers,
+        x="Байес. среднее",
+        y="Преподаватель",
+        orientation="h",
+        color="n",
+        color_continuous_scale="Teal",
+        title="Топ преподавателей по сглаженному среднему",
+        labels={"Байес. среднее": "Сглаженное среднее", "Преподаватель": ""},
+    )
+    fig.update_xaxes(tickformat=".2f")
+    fig.update_layout(height=640, yaxis_title="")
+    st.plotly_chart(fig, width="stretch")
+
+    teacher_pick = st.selectbox("Выберите преподавателя для детализации", teacher_stats["Преподаватель"].tolist())
+    one = d[d["teacher"] == teacher_pick].copy()
+    if "program_display" not in one.columns:
+        one["program_display"] = one["program"]
+
+    by_prog = (
+        one.groupby(["program_display", "program"], dropna=False)["rating"]
+        .agg(["count", "mean", "median", "min", "max"])
+        .reset_index()
+        .rename(
+            columns={
+                "program_display": "Программа",
+                "program": "Полное название",
+                "count": "n",
+                "mean": "Среднее",
+                "median": "Медиана",
+                "min": "Минимум",
+                "max": "Максимум",
+            }
+        )
+    )
+    by_prog = round_df(by_prog.sort_values("Среднее", ascending=False))
+    st.caption("Детализация выбранного преподавателя по программам.")
+    st.dataframe(by_prog, width="stretch")
+
+
 def render_codebook() -> None:
     st.subheader("Кодбук")
     st.info("Что здесь: описание всех колонок и шкал в данных `combined_general_agg.csv`.")
@@ -1132,6 +1322,7 @@ def main() -> None:
 
     df = load_data("combined_general_agg.csv")
     df = safe_numeric(df, num_cols(df))
+    df_teachers = load_teachers_data("data/processed/combined_teachers_agg.csv")
 
     if "school" not in df.columns:
         st.warning("В файле нет столбца `school`. Фильтр по школам будет недоступен.")
@@ -1144,9 +1335,20 @@ def main() -> None:
         return
 
     dashboard_df = add_program_display(add_block_features(dff), short_labels=filters.short_program_labels)
+    if not df_teachers.empty:
+        t = df_teachers.copy()
+        if filters.programs:
+            t = t[t["program"].isin(filters.programs)]
+        if filters.years:
+            t = t[t["year"].isin(filters.years)]
+        if filters.schools:
+            t = t[t["school"].isin(filters.schools)]
+        teachers_df = add_program_display(t, short_labels=filters.short_program_labels)
+    else:
+        teachers_df = pd.DataFrame()
 
     tabs = st.tabs(
-        ["Обзор", "Описательные", "Сравнение программ", "Корреляции", "Матрица приоритетов", "NPS", "CSI", "Кодбук"]
+        ["Обзор", "Описательные", "Сравнение программ", "Корреляции", "Матрица приоритетов", "NPS", "CSI", "Преподаватели", "Кодбук"]
     )
     with tabs[0]:
         render_overview(dashboard_df)
@@ -1163,6 +1365,8 @@ def main() -> None:
     with tabs[6]:
         render_csi(dashboard_df)
     with tabs[7]:
+        render_teachers(teachers_df)
+    with tabs[8]:
         render_codebook()
 
 

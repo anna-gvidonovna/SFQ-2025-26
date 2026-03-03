@@ -159,4 +159,5 @@
 | `data/interim/combined.csv` | Объединенный wide-файл (включая преподавателей) |
 | `data/processed/combined_general.csv` | Общие вопросы в русских названиях |
 | `data/processed/combined_teachers.csv` | Оценки преподавателей в long-формате |
+| `data/processed/combined_teachers_agg.csv` | Финальный long-формат преподавателей с `school` и заполненным `year` |
 | `combined_general_agg.csv` | Итоговый агрегированный файл (латинские short-name колонки) |
