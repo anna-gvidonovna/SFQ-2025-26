@@ -27,6 +27,108 @@ px.defaults.color_discrete_sequence = ["#1D4ED8", "#0EA5E9", "#14B8A6", "#22C55E
 st.markdown(
     """
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    html, body, [class*="css"], [data-testid="stAppViewContainer"], [data-testid="stSidebar"] {
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    :root {
+        --text-main: #0f172a;
+        --text-muted: #475569;
+        --accent: #1d4ed8;
+        --surface: #f8fafc;
+        --border: #e2e8f0;
+    }
+
+    [data-testid="stAppViewContainer"] {
+        color: var(--text-main);
+        background: radial-gradient(1200px 450px at 10% -10%, #e0ecff 0%, rgba(224,236,255,0) 60%),
+                    radial-gradient(900px 420px at 95% 0%, #ecfeff 0%, rgba(236,254,255,0) 55%),
+                    #ffffff;
+    }
+
+    h1, h2, h3 {
+        letter-spacing: -0.02em;
+        color: var(--text-main);
+        line-height: 1.15;
+        margin-top: 0.2rem;
+        margin-bottom: 0.7rem;
+    }
+
+    h1 {
+        font-size: clamp(1.8rem, 2.8vw, 2.6rem) !important;
+        font-weight: 700 !important;
+    }
+
+    h2 {
+        font-size: clamp(1.3rem, 1.9vw, 1.75rem) !important;
+        font-weight: 700 !important;
+    }
+
+    h3 {
+        font-size: clamp(1.1rem, 1.5vw, 1.35rem) !important;
+        font-weight: 600 !important;
+    }
+
+    p, li, .stMarkdown, .stCaption {
+        font-size: clamp(0.95rem, 1.05vw, 1rem);
+        line-height: 1.5;
+        color: var(--text-main);
+    }
+
+    [data-testid="stCaptionContainer"] p {
+        color: var(--text-muted) !important;
+        font-size: 0.93rem !important;
+    }
+
+    [data-testid="stMetricValue"] {
+        font-size: clamp(1.35rem, 1.9vw, 1.9rem) !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.01em;
+    }
+
+    [data-testid="stMetricLabel"] p {
+        color: var(--text-muted) !important;
+        font-size: 0.93rem !important;
+        font-weight: 500 !important;
+    }
+
+    [data-testid="stMetric"] {
+        background: rgba(248, 250, 252, 0.92);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 0.8rem 0.9rem;
+        box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
+    }
+
+    [data-baseweb="tab-list"] {
+        gap: 0.2rem;
+        padding-bottom: 0.3rem;
+    }
+
+    button[data-baseweb="tab"] {
+        border-radius: 10px !important;
+        padding: 0.45rem 0.75rem !important;
+        font-weight: 600 !important;
+        color: var(--text-muted) !important;
+    }
+
+    button[data-baseweb="tab"][aria-selected="true"] {
+        background: #e8f0ff !important;
+        color: #123a90 !important;
+    }
+
+    [data-testid="stInfo"] {
+        border-radius: 12px;
+        border: 1px solid #bfdbfe;
+        background: #eff6ff;
+    }
+
+    [data-testid="stSidebar"] {
+        border-right: 1px solid var(--border);
+    }
+
     .block-container {
         padding-top: 1.0rem;
         padding-bottom: 1.0rem;
@@ -38,6 +140,10 @@ st.markdown(
         .block-container {
             padding-left: 0.5rem;
             padding-right: 0.5rem;
+        }
+        [data-testid="stMetric"] {
+            padding: 0.65rem 0.7rem;
+            border-radius: 12px;
         }
     }
     </style>
@@ -188,7 +294,6 @@ def load_data(path: str) -> pd.DataFrame:
     return df
 
 
-@st.cache_data(show_spinner=False)
 def load_codebook(path: str) -> str:
     p = Path(path)
     if p.exists():
@@ -585,6 +690,12 @@ def render_program_comparison(df: pd.DataFrame) -> None:
         "Что здесь: статистическое сравнение программ по выбранной метрике. "
         "Показаны ANOVA, Kruskal-Wallis, Levene и post-hoc Dunn (Holm-коррекция)."
     )
+    st.markdown("**Ключевые формулы:**")
+    st.latex(r"\eta^2=\frac{SS_{between}}{SS_{total}}")
+    st.caption(
+        "ANOVA проверяет различия средних между программами, "
+        "а Kruskal-Wallis — различия по рангам (непараметрический подход)."
+    )
 
     if "program" not in df.columns:
         st.warning("Для этой вкладки нужен столбец `program`.")
@@ -676,6 +787,9 @@ def render_program_comparison(df: pd.DataFrame) -> None:
 def render_correlations(df: pd.DataFrame) -> None:
     st.subheader("Корреляции")
     st.info("Что здесь: матрица корреляций Спирмена и наиболее сильные положительные/отрицательные связи с выбранной метрикой.")
+    st.markdown("**Формула корреляции Спирмена:**")
+    st.latex(r"\rho_s=\mathrm{corr}(\mathrm{rank}(X),\mathrm{rank}(Y))")
+    st.caption("Метод использует ранги, поэтому устойчивее для порядковых шкал и ненормальных распределений.")
 
     numeric = num_cols(df)
     default = [c for c in ["nps", "satisf_overall", "expect_match", "program_mean", "coordinator_mean", "infrastructure_mean"] if c in numeric]
@@ -821,6 +935,9 @@ def render_nps(df: pd.DataFrame) -> None:
     if "nps" not in df.columns:
         st.warning("Столбец `nps` не найден.")
         return
+    st.markdown("**Формула NPS:**")
+    st.latex(r"\mathrm{NPS}=\%Promoters-\%Detractors")
+    st.caption("Границы сегментов: Promoters = 9–10, Passives = 7–8, Detractors = 0–6.")
     render_interp(
         "Как интерпретировать NPS",
         [
@@ -910,7 +1027,7 @@ def render_nps(df: pd.DataFrame) -> None:
 
 def compute_csi_frame(df: pd.DataFrame) -> pd.DataFrame:
     """
-    CSI по методике пользователя:
+    CSI по принятой методике:
     CSI = (средняя удовлетворенность * средняя важность) / 16 * 100
     где обе шкалы 1-4.
     """
@@ -935,11 +1052,21 @@ def compute_csi_frame(df: pd.DataFrame) -> pd.DataFrame:
 def render_csi(df: pd.DataFrame) -> None:
     st.subheader("CSI (индекс удовлетворенности)")
     st.info("Что здесь: расчет CSI по блокам и общий CSI, методология и интерпретация.")
+    st.markdown("**Математическая формула (для каждого респондента и каждого блока):**")
+    st.latex(r"\mathrm{CSI}_{i,b} = \frac{\bar{S}_{i,b}\cdot\bar{I}_{i,b}}{16}\cdot 100")
+    st.markdown("где:")
+    st.latex(r"\bar{S}_{i,b}=\frac{1}{K_b}\sum_{k=1}^{K_b} S_{i,b,k}, \quad \bar{I}_{i,b}=\frac{1}{K_b}\sum_{k=1}^{K_b} I_{i,b,k}")
+    st.markdown("и общий индекс респондента:")
+    st.latex(r"\mathrm{CSI}^{\mathrm{overall}}_i = \frac{1}{B_i}\sum_{b=1}^{B_i}\mathrm{CSI}_{i,b}")
+    st.caption(
+        "Шкалы удовлетворенности и важности — 1..4, поэтому нормирующий коэффициент равен 16 (=4×4). "
+        "Для пропусков используется среднее по доступным пунктам блока."
+    )
 
     render_interp(
         "Как считается CSI",
         [
-            "Формула по вашей методике: CSI = (средняя удовлетворенность × средняя важность) / 16 × 100.",
+            "Формула: CSI = (средняя удовлетворенность × средняя важность) / 16 × 100.",
             "Коэффициент 16 используется, потому что шкалы удовлетворенности и важности обе от 1 до 4 (4×4=16).",
             "CSI считается по блокам: Куратор, Преподавательский состав, Программа, Учебный отдел.",
             "Общий CSI = среднее из доступных блоковых CSI у респондента.",
@@ -981,6 +1108,33 @@ def render_csi(df: pd.DataFrame) -> None:
     csi_summary = round_df(pd.DataFrame(summary_rows).sort_values("Среднее CSI", ascending=False))
     st.caption("Таблица: сводка CSI по блокам.")
     st.dataframe(csi_summary, width="stretch")
+
+    # Прозрачность расчета: показываем средние компоненты формулы по блокам
+    comp_rows = []
+    for block_name, (score_cols, imp_cols) in CSI_BLOCKS.items():
+        s_cols = [c for c in score_cols if c in d.columns]
+        i_cols = [c for c in imp_cols if c in d.columns]
+        if not s_cols or not i_cols:
+            continue
+        s_mean_row = d[s_cols].mean(axis=1)
+        i_mean_row = d[i_cols].mean(axis=1)
+        csi_row = (s_mean_row * i_mean_row / 16.0) * 100.0
+        comp_rows.append(
+            {
+                "Блок": block_name,
+                "Средняя удовлетворенность (S̄)": s_mean_row.mean(),
+                "Средняя важность (Ī)": i_mean_row.mean(),
+                "Средний CSI (по респондентам)": csi_row.mean(),
+                "CSI из агрегированных S̄ и Ī": (s_mean_row.mean() * i_mean_row.mean() / 16.0) * 100.0,
+            }
+        )
+    if comp_rows:
+        comp_df = round_df(pd.DataFrame(comp_rows))
+        st.caption(
+            "Таблица: компоненты формулы CSI. "
+            "`Средний CSI (по респондентам)` — основной показатель в дашборде."
+        )
+        st.dataframe(comp_df, width="stretch")
 
     plot_df = csi_summary.copy()
     fig = px.bar(
@@ -1040,30 +1194,17 @@ def render_csi(df: pd.DataFrame) -> None:
 def render_codebook() -> None:
     st.subheader("Кодбук")
     st.info("Что здесь: описание всех колонок и шкал в данных `combined_general_agg.csv`.")
-    codebook = load_codebook("docs/codebook.md")
+    codebook_path = Path("docs/codebook.md")
+    if not codebook_path.exists():
+        codebook_path = Path("codebook.md")
+
+    codebook = load_codebook(str(codebook_path))
     if not codebook:
-        st.warning("Файл `docs/codebook.md` не найден.")
+        st.warning("Файл кодбука не найден (`docs/codebook.md` или `codebook.md`).")
         return
 
-    lines = codebook.splitlines()
-    sections: list[tuple[str, str]] = []
-    current_title = "Введение"
-    current_body: list[str] = []
-    for line in lines:
-        if line.startswith("## "):
-            sections.append((current_title, "\n".join(current_body).strip()))
-            current_title = line.replace("## ", "", 1).strip()
-            current_body = []
-        else:
-            current_body.append(line)
-    sections.append((current_title, "\n".join(current_body).strip()))
-
-    for title, body in sections:
-        with st.expander(title, expanded=(title == "Введение")):
-            if body:
-                st.markdown(body)
-            else:
-                st.caption("Раздел пуст.")
+    st.caption(f"Источник: `{codebook_path}`")
+    st.markdown(codebook)
 
 
 def main() -> None:
