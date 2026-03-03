@@ -64,6 +64,9 @@ KEY_METRICS = [
     "nps",
 ]
 
+ROUND_DECIMALS = 2
+TECHNICAL_NUMERIC_EXCLUDE = {"resp_id", "duration_sec"}
+
 COL_LABELS = {
     "program": "Программа",
     "year": "Курс",
@@ -100,12 +103,29 @@ COL_LABELS = {
     "coord_timely_imp": "Своевременность информации от координатора (важность)",
     "coord_help_imp": "Готовность координатора помочь (важность)",
     "infra_library": "Библиотека",
-    "infra_wellbeing": "Wellbeing",
+    "infra_wellbeing": "Сервис Wellbeing",
     "infra_food": "Еда на кампусе",
     "infra_software": "ПО в аудиториях",
     "infra_equipment": "Оборудование в аудиториях",
     "infra_classrooms": "Комфорт аудиторий",
     "infra_workshops": "Комфорт мастерских/ресурсных центров",
+    "gen_ed_critical_thinking": "Общеобразовательные: критическое мышление",
+    "gen_ed_history": "Общеобразовательные: история России",
+    "gen_ed_foreign_lang": "Общеобразовательные: иностранный язык",
+    "gen_ed_safety": "Общеобразовательные: безопасность жизнедеятельности",
+    "gen_ed_statehood": "Общеобразовательные: основы российской государственности",
+    "hum_critical_thinking": "Гуманитарные: критическое мышление",
+    "hum_history": "Гуманитарные: история России",
+    "hum_statehood": "Гуманитарные: основы российской государственности",
+    "hum_foreign_lang": "Гуманитарные: иностранный язык",
+    "hum_philosophy": "Гуманитарные: философия",
+    "hum_communication": "Гуманитарные: теория и практика коммуникации",
+    "prev_sem_relevance": "Связь с предыдущим семестром",
+    "skill_confidence": "Уверенность в применении навыков",
+    "postgrad_masters": "План: магистратура/доп. образование",
+    "postgrad_same_field": "План: работа в выбранной сфере",
+    "postgrad_other_field": "План: работа в другой сфере",
+    "postgrad_other": "План: другой вариант",
     "faculty_mean": "Блок: преподавательская команда (среднее)",
     "curator_mean": "Блок: куратор (среднее)",
     "program_mean": "Блок: программа (среднее)",
@@ -144,6 +164,78 @@ def label(col: str) -> str:
 
 def num_cols(df: pd.DataFrame) -> list[str]:
     return df.select_dtypes(include=[np.number]).columns.tolist()
+
+
+def round_df(df: pd.DataFrame, decimals: int = ROUND_DECIMALS) -> pd.DataFrame:
+    out = df.copy()
+    num = out.select_dtypes(include=[np.number]).columns
+    out[num] = out[num].round(decimals)
+    return out
+
+
+def get_descriptive_metrics(df: pd.DataFrame) -> list[str]:
+    """Расширенный список метрик из codebook + блоковые агрегаты."""
+    preferred_order = [
+        "satisf_overall",
+        "satisf_teachers",
+        "expect_match",
+        "fac_support_score",
+        "fac_clarity_score",
+        "cur_timely_score",
+        "cur_help_score",
+        "prog_clarity_score",
+        "prog_deadlines_score",
+        "prog_relevance_score",
+        "prog_workload_score",
+        "coord_respect_score",
+        "coord_results_score",
+        "coord_timely_score",
+        "coord_help_score",
+        "assess_criteria_timely",
+        "assess_order_clear",
+        "assess_consistent",
+        "infra_library",
+        "infra_wellbeing",
+        "infra_food",
+        "infra_software",
+        "infra_equipment",
+        "infra_classrooms",
+        "infra_workshops",
+        "gen_ed_critical_thinking",
+        "gen_ed_history",
+        "gen_ed_foreign_lang",
+        "gen_ed_safety",
+        "gen_ed_statehood",
+        "hum_critical_thinking",
+        "hum_history",
+        "hum_statehood",
+        "hum_foreign_lang",
+        "hum_philosophy",
+        "hum_communication",
+        "prev_sem_relevance",
+        "skill_confidence",
+        "postgrad_masters",
+        "postgrad_same_field",
+        "postgrad_other_field",
+        "postgrad_other",
+        "faculty_mean",
+        "curator_mean",
+        "program_mean",
+        "coordinator_mean",
+        "assessment_mean",
+        "infrastructure_mean",
+        "nps",
+    ]
+    numeric = [
+        c
+        for c in num_cols(df)
+        if c not in TECHNICAL_NUMERIC_EXCLUDE
+        and not c.endswith("_comment")
+        and c != "date"
+    ]
+    chosen = [c for c in preferred_order if c in numeric]
+    others = sorted([c for c in numeric if c not in chosen], key=label)
+    return chosen + others
 
 
 def safe_numeric(df: pd.DataFrame, cols: Iterable[str]) -> pd.DataFrame:
@@ -209,6 +301,10 @@ def render_overview(df: pd.DataFrame) -> None:
     c2.metric("Программ", f"{df['program'].nunique() if 'program' in df.columns else 0}", help="Число уникальных программ в текущем срезе.")
     c3.metric("Школ", f"{df['school'].nunique() if 'school' in df.columns else 0}", help="Число уникальных школ в текущем срезе.")
     c4.metric("Медиана NPS", f"{df['nps'].median():.2f}" if "nps" in df.columns else "н/д", help="Центральное значение готовности рекомендовать школу.")
+    if "nps" in df.columns:
+        c5, c6 = st.columns(2)
+        c5.metric("Минимум NPS", f"{df['nps'].min():.2f}", help="Минимальное значение NPS в текущем срезе.")
+        c6.metric("Максимум NPS", f"{df['nps'].max():.2f}", help="Максимальное значение NPS в текущем срезе.")
 
     if "program" in df.columns:
         st.caption("График: размер выборки по программам.")
@@ -245,17 +341,18 @@ def render_descriptives(df: pd.DataFrame) -> None:
     st.subheader("Описательная статистика")
     st.info("Что здесь: средние, медианы, разброс и bootstrap доверительные интервалы для выбранных метрик.")
 
-    available_metrics = [c for c in KEY_METRICS if c in df.columns]
+    available_metrics = get_descriptive_metrics(df)
     if not available_metrics:
         st.warning("Ключевые метрики не найдены.")
         return
 
+    default_metrics = [c for c in KEY_METRICS if c in available_metrics]
     selected = st.multiselect(
         "Метрики для анализа",
         available_metrics,
-        default=available_metrics,
+        default=default_metrics if default_metrics else available_metrics[:10],
         format_func=label,
-        help="Выберите показатели для расчета описательной статистики.",
+        help="Доступны ключевые и дополнительные метрики из `combined_general_agg.csv`.",
     )
     if not selected:
         st.info("Выберите хотя бы одну метрику.")
@@ -271,6 +368,8 @@ def render_descriptives(df: pd.DataFrame) -> None:
                 "n": n,
                 "Среднее": mean,
                 "Медиана": vals.median(),
+                "Минимум": vals.min(),
+                "Максимум": vals.max(),
                 "Std": vals.std(),
                 "Q25": vals.quantile(0.25),
                 "Q75": vals.quantile(0.75),
@@ -279,6 +378,7 @@ def render_descriptives(df: pd.DataFrame) -> None:
             }
         )
     stat_df = pd.DataFrame(rows).sort_values("Среднее", ascending=False)
+    stat_df = round_df(stat_df)
     st.caption("Таблица: описательные статистики по выбранным метрикам.")
     st.dataframe(stat_df, use_container_width=True)
 
@@ -307,8 +407,35 @@ def render_descriptives(df: pd.DataFrame) -> None:
     grp_rows = []
     for prog, g in df.groupby("program"):
         mean, lo, hi, n = bootstrap_mean_ci(g[metric_for_group])
-        grp_rows.append({"program": prog, "n": n, "mean": mean, "ci_low": lo, "ci_high": hi})
-    grp = pd.DataFrame(grp_rows).sort_values("mean")
+        vals = pd.to_numeric(g[metric_for_group], errors="coerce")
+        grp_rows.append(
+            {
+                "program": prog,
+                "n": n,
+                "mean": mean,
+                "ci_low": lo,
+                "ci_high": hi,
+                "min": vals.min(),
+                "max": vals.max(),
+            }
+        )
+    grp = round_df(pd.DataFrame(grp_rows).sort_values("mean"))
+
+    st.caption("Таблица: сводка по программам (с min/max).")
+    st.dataframe(
+        grp.rename(
+            columns={
+                "program": "Программа",
+                "n": "n",
+                "mean": "Среднее",
+                "ci_low": "CI нижняя",
+                "ci_high": "CI верхняя",
+                "min": "Минимум",
+                "max": "Максимум",
+            }
+        ),
+        use_container_width=True,
+    )
 
     st.caption("График: средние по программам с bootstrap 95% CI.")
     fig = px.scatter(
@@ -343,13 +470,26 @@ def render_descriptives(df: pd.DataFrame) -> None:
 def render_program_comparison(df: pd.DataFrame) -> None:
     st.subheader("Сравнение программ")
     st.info(
-        "Что здесь: статистическое сравнение программ по NPS. "
+        "Что здесь: статистическое сравнение программ по выбранной метрике. "
         "Показаны ANOVA, Kruskal-Wallis, Levene и post-hoc Dunn (Holm-коррекция)."
     )
 
-    if "nps" not in df.columns or "program" not in df.columns:
-        st.warning("Для этой вкладки нужны столбцы `program` и `nps`.")
+    if "program" not in df.columns:
+        st.warning("Для этой вкладки нужен столбец `program`.")
         return
+
+    candidates = [c for c in get_descriptive_metrics(df) if df[c].dropna().nunique() >= 3]
+    if not candidates:
+        st.warning("Нет метрик с достаточной вариативностью для сравнения программ.")
+        return
+
+    selected_metric = st.selectbox(
+        "Метрика для сравнения программ",
+        options=candidates,
+        index=candidates.index("nps") if "nps" in candidates else 0,
+        format_func=label,
+        help="Выберите метрику, по которой нужно сравнить программы.",
+    )
 
     min_n = st.slider(
         "Минимальный размер группы для тестов",
@@ -361,45 +501,47 @@ def render_program_comparison(df: pd.DataFrame) -> None:
     )
     vc = df["program"].value_counts()
     valid_programs = vc[vc >= min_n].index
-    d = df[df["program"].isin(valid_programs)][["program", "nps"]].dropna()
+    d = df[df["program"].isin(valid_programs)][["program", selected_metric]].dropna()
     st.caption(f"В анализе: программ = {d['program'].nunique()}, наблюдений = {len(d)}.")
 
     if d["program"].nunique() < 2:
         st.info("Недостаточно программ для проведения тестов.")
         return
 
-    group_vals = [g["nps"].values for _, g in d.groupby("program")]
+    group_vals = [g[selected_metric].values for _, g in d.groupby("program")]
     _, lev_p = stats.levene(*group_vals, center="median")
-    anova_model = ols("nps ~ C(program)", data=d).fit()
+    anova_model = ols(f"{selected_metric} ~ C(program)", data=d).fit()
     anova_tbl = sm.stats.anova_lm(anova_model, typ=2)
     ss_between = anova_tbl.loc["C(program)", "sum_sq"]
     eta2 = ss_between / anova_tbl["sum_sq"].sum()
     _, kw_p = stats.kruskal(*group_vals)
-    dunn = sp.posthoc_dunn(d, val_col="nps", group_col="program", p_adjust="holm")
+    dunn = sp.posthoc_dunn(d, val_col=selected_metric, group_col="program", p_adjust="holm")
 
-    k1, k2, k3, k4 = st.columns(4)
-    k1.metric("ANOVA p-value", f"{anova_tbl.loc['C(program)', 'PR(>F)']:.4g}", help="Проверка различий средних NPS между программами.")
-    k2.metric("Eta^2", f"{eta2:.3f}", help="Доля дисперсии NPS, объясненная фактором программы.")
-    k3.metric("Kruskal p-value", f"{kw_p:.4g}", help="Непараметрический тест различий между программами.")
-    k4.metric("Levene p-value", f"{lev_p:.4g}", help="Проверка равенства дисперсий между группами.")
+    k1, k2, k3, k4, k5, k6 = st.columns(6)
+    k1.metric("ANOVA p-value", f"{anova_tbl.loc['C(program)', 'PR(>F)']:.2f}", help=f"Проверка различий средних по метрике: {label(selected_metric)}.")
+    k2.metric("Eta^2", f"{eta2:.2f}", help="Доля дисперсии, объясненная фактором программы.")
+    k3.metric("Kruskal p-value", f"{kw_p:.2f}", help="Непараметрический тест различий между программами.")
+    k4.metric("Levene p-value", f"{lev_p:.2f}", help="Проверка равенства дисперсий между группами.")
+    k5.metric("Минимум", f"{d[selected_metric].min():.2f}", help="Минимум выбранной метрики в анализируемом срезе.")
+    k6.metric("Максимум", f"{d[selected_metric].max():.2f}", help="Максимум выбранной метрики в анализируемом срезе.")
 
     left, right = st.columns(2)
     with left:
         st.caption("Таблица: результаты ANOVA.")
-        st.dataframe(anova_tbl, use_container_width=True)
+        st.dataframe(round_df(anova_tbl), use_container_width=True)
     with right:
         st.caption("Таблица: Dunn post-hoc, p-value с Holm-коррекцией.")
-        st.dataframe(dunn, use_container_width=True)
+        st.dataframe(round_df(dunn), use_container_width=True)
 
-    st.caption("График: распределение NPS по программам.")
+    st.caption("График: распределение выбранной метрики по программам.")
     fig = px.box(
         d,
         x="program",
-        y="nps",
+        y=selected_metric,
         points="all",
         color="program",
-        title="NPS по программам",
-        labels={"program": "Программа", "nps": "NPS"},
+        title=f"{label(selected_metric)} по программам",
+        labels={"program": "Программа", selected_metric: label(selected_metric)},
     )
     fig.update_layout(showlegend=False, height=520, xaxis_tickangle=-30)
     st.plotly_chart(fig, use_container_width=True)
@@ -422,7 +564,7 @@ def render_correlations(df: pd.DataFrame) -> None:
         st.info("Выберите минимум 2 столбца.")
         return
 
-    corr = df[selected].corr(method="spearman")
+    corr = df[selected].corr(method="spearman").round(ROUND_DECIMALS)
     corr_display = corr.copy()
     corr_display.index = [label(i) for i in corr_display.index]
     corr_display.columns = [label(i) for i in corr_display.columns]
@@ -449,7 +591,7 @@ def render_correlations(df: pd.DataFrame) -> None:
     with_target = corr[target].drop(target).sort_values(ascending=False).rename("rho").to_frame()
     with_target.index = [label(i) for i in with_target.index]
     st.caption("Таблица: коэффициенты корреляции с целевой метрикой.")
-    st.dataframe(with_target, use_container_width=True)
+    st.dataframe(round_df(with_target), use_container_width=True)
 
     top_pos = with_target.head(5).reset_index().rename(columns={"index": "Показатель"})
     top_neg = with_target.tail(5).reset_index().rename(columns={"index": "Показатель"})
@@ -489,6 +631,10 @@ def render_priority_matrix(df: pd.DataFrame) -> None:
                 "Критерий": label(score_col).replace(" (оценка)", ""),
                 "Средняя оценка": score[valid].mean(),
                 "Средняя важность": imp[valid].mean(),
+                "Минимум оценки": score[valid].min(),
+                "Максимум оценки": score[valid].max(),
+                "Минимум важности": imp[valid].min(),
+                "Максимум важности": imp[valid].max(),
                 "Разрыв (важность - оценка)": imp[valid].mean() - score[valid].mean(),
                 "n": int(valid.sum()),
             }
@@ -498,7 +644,7 @@ def render_priority_matrix(df: pd.DataFrame) -> None:
         st.warning("В текущем срезе нет доступных пар score/importance.")
         return
 
-    m = pd.DataFrame(rows)
+    m = round_df(pd.DataFrame(rows))
     score_mid = m["Средняя оценка"].mean()
     imp_mid = m["Средняя важность"].mean()
 
@@ -522,7 +668,7 @@ def render_priority_matrix(df: pd.DataFrame) -> None:
 
     st.caption("Таблица: приоритеты улучшений (по убыванию разрыва).")
     m = m.sort_values("Разрыв (важность - оценка)", ascending=False)
-    st.dataframe(m, use_container_width=True)
+    st.dataframe(round_df(m), use_container_width=True)
 
 
 def render_nps(df: pd.DataFrame) -> None:
@@ -538,11 +684,13 @@ def render_nps(df: pd.DataFrame) -> None:
     seg["pct"] = seg["n"] / seg["n"].sum() * 100
     nps_value = float(seg.loc[seg["segment"] == "Промоутер", "pct"].sum() - seg.loc[seg["segment"] == "Критик", "pct"].sum())
 
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("NPS", f"{nps_value:.1f}", help="NPS = %промоутеров - %критиков.")
-    c2.metric("% Промоутеров", f"{seg.loc[seg['segment']=='Промоутер', 'pct'].sum():.1f}")
-    c3.metric("% Пассивов", f"{seg.loc[seg['segment']=='Пассив', 'pct'].sum():.1f}")
-    c4.metric("% Критиков", f"{seg.loc[seg['segment']=='Критик', 'pct'].sum():.1f}")
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1.metric("NPS", f"{nps_value:.2f}", help="NPS = %промоутеров - %критиков.")
+    c2.metric("% Промоутеров", f"{seg.loc[seg['segment']=='Промоутер', 'pct'].sum():.2f}")
+    c3.metric("% Пассивов", f"{seg.loc[seg['segment']=='Пассив', 'pct'].sum():.2f}")
+    c4.metric("% Критиков", f"{seg.loc[seg['segment']=='Критик', 'pct'].sum():.2f}")
+    c5.metric("Минимум NPS", f"{d['nps'].min():.2f}")
+    c6.metric("Максимум NPS", f"{d['nps'].max():.2f}")
 
     left, right = st.columns(2)
     with left:
@@ -580,7 +728,7 @@ def render_nps(df: pd.DataFrame) -> None:
         st.caption("График: NPS по программам.")
         nps_by_program = d.groupby("program").apply(
             lambda x: (x["nps"].ge(9).mean() - x["nps"].le(6).mean()) * 100
-        ).rename("nps").reset_index()
+        ).rename("nps").reset_index().round(ROUND_DECIMALS)
         fig = px.bar(
             nps_by_program.sort_values("nps"),
             x="nps",
@@ -641,21 +789,23 @@ def main() -> None:
         st.error("После применения фильтров данных не осталось.")
         return
 
+    dashboard_df = add_block_features(dff)
+
     tabs = st.tabs(
         ["Обзор", "Описательные", "Сравнение программ", "Корреляции", "Матрица приоритетов", "NPS", "Кодбук"]
     )
     with tabs[0]:
-        render_overview(dff)
+        render_overview(dashboard_df)
     with tabs[1]:
-        render_descriptives(dff)
+        render_descriptives(dashboard_df)
     with tabs[2]:
-        render_program_comparison(dff)
+        render_program_comparison(dashboard_df)
     with tabs[3]:
-        render_correlations(add_block_features(dff))
+        render_correlations(dashboard_df)
     with tabs[4]:
-        render_priority_matrix(dff)
+        render_priority_matrix(dashboard_df)
     with tabs[5]:
-        render_nps(dff)
+        render_nps(dashboard_df)
     with tabs[6]:
         render_codebook()
 

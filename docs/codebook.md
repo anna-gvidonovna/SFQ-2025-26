@@ -1,192 +1,163 @@
-# Codebook — `combined_general_agg.csv`
+# Кодбук — `combined_general_agg.csv`
 
-Student Experience Questionnaire (SFQ), AY 2025–26 semester 2.
-Source: Testograf exports, 18 programmes, 236 respondents.
+Анкета Student Experience Questionnaire (SFQ), 2025–26, семестр 2.
+Источник: выгрузки Testograf, 18 программ, 236 респондентов.
 
-**Scale conventions**
-- `_score` columns: satisfaction rating, typically **1–4** (1 = very dissatisfied, 5 = very satisfied).
-- `_imp` columns: importance rating for the same criterion, typically **1–4** (1 = not important, 5 = very important).
-- Infrastructure & assessment items: **1–4** unless noted.
-- `nps`: likelihood to recommend, **0–10** (Net Promoter Score scale).
-- `postgrad_*`: binary checkbox (**1** = selected, empty = not selected).
-- `_comment` columns: free-text (open-ended), may contain newlines.
+## Общие правила шкал
+- Большинство матричных вопросов (`*_score`, `*_imp`, а также блок гуманитарных/общеобразовательных дисциплин): **1–4**.
+- Блоки `assess_*`, `infra_*`, а также `prev_sem_relevance` и `skill_confidence`: **1–5**.
+- `nps`: **0–10**.
+- `postgrad_*`: бинарные чекбоксы (**1** = выбрано, пусто = не выбрано).
+- `*_comment`: открытые текстовые ответы (возможны переносы строк).
 
----
+## Идентификаторы и метаданные
 
-## Identifiers & metadata
+| Колонка | Тип | Описание |
+|---|---|---|
+| `program` | string | Название программы |
+| `school` | string | Школа программы (из `Реестр программ.csv`) |
+| `year` | string | Курс обучения (например, `1 курс`, `3 курс`) |
+| `resp_id` | int | Номер ответа в исходном файле программы (не глобально уникальный) |
+| `date` | datetime | Дата/время отправки (`DD.MM.YYYY HH:MM:SS`) |
+| `duration_sec` | int | Время заполнения анкеты, сек |
+| `ip` | string | IP-адрес |
+| `source` | string | Канал распространения анкеты |
+| `os` | string | Операционная система |
+| `browser` | string | Браузер |
+| `device` | string | Тип устройства (`Компьютер`, `Телефон`, `Планшет`) |
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `program` | string | Programme name (from source filename, Russian) |
-| `year` | string | Year of study selected by respondent (e.g. `1 курс`, `3 курс`). `NA` for single-cohort programmes that did not include this question |
-| `resp_id` | int | Response number within the source file (not globally unique) |
-| `date` | datetime | Submission timestamp (`DD.MM.YYYY HH:MM:SS`) |
-| `duration_sec` | int | Time spent completing the survey, in seconds |
-| `ip` | string | Respondent IP address |
-| `source` | string | Distribution channel (e.g. `Прямая ссылка`) |
-| `os` | string | Operating system detected |
-| `browser` | string | Browser detected |
-| `device` | string | Device type (`Компьютер`, `Телефон`, `Планшет`) |
+## Глобальная удовлетворенность
 
----
+| Колонка | Шкала | Вопрос |
+|---|---|---|
+| `satisf_overall` | 1–4 | Удовлетворенность образовательным процессом в целом |
+| `satisf_teachers` | 1–4 | Удовлетворенность работой преподавателей |
+| `expect_match` | 1–4 | Совпадение ожиданий от программы с реальным опытом |
 
-## Q1–3 — Global satisfaction
+## Преподавательская команда (матрица)
 
-| Column | Scale | Question (RU) |
-|--------|-------|---------------|
-| `satisf_overall` | 1–4 | Пожалуйста, оцените вашу удовлетворенность образовательным процессом в целом |
-| `satisf_teachers` | 1–4 | Насколько вы в целом удовлетворены работой преподавателей в течение семестра? |
-| `expect_match` | 1–4 | Насколько ваши ожидания от программы при поступлении совпали с опытом обучения? |
+| Колонка | Шкала | Смысл |
+|---|---|---|
+| `fac_support_score` | 1–4 | Достаточность поддержки преподавательской команды (оценка) |
+| `fac_support_imp` | 1–4 | Достаточность поддержки преподавательской команды (важность) |
+| `fac_clarity_score` | 1–4 | Понятность объяснений преподавателей (оценка) |
+| `fac_clarity_imp` | 1–4 | Понятность объяснений преподавателей (важность) |
+| `fac_comment` | text | Открытый комментарий о преподавательской команде |
 
-> `satisf_teachers` is absent in some single-cohort programmes (Foundation Art and Design, theatre, management).
+## Куратор (матрица)
 
----
+| Колонка | Шкала | Смысл |
+|---|---|---|
+| `cur_timely_score` | 1–4 | Своевременность информирования куратором (оценка) |
+| `cur_timely_imp` | 1–4 | Своевременность информирования куратором (важность) |
+| `cur_help_score` | 1–4 | Готовность куратора помогать (оценка) |
+| `cur_help_imp` | 1–4 | Готовность куратора помогать (важность) |
+| `cur_comment` | text | Открытый комментарий о кураторе |
 
-## Q4 — Faculty team (matrix, score + importance)
+## Программа (матрица)
 
-| Column | Scale | Criterion |
-|--------|-------|-----------|
-| `fac_support_score` | 1–4 | У меня была достаточная поддержка преподавательской команды в профессиональном развитии — **satisfaction** |
-| `fac_support_imp` | 1–4 | То же — **importance** |
-| `fac_clarity_score` | 1–4 | Преподавательская команда объясняет сложные вещи понятным языком — **satisfaction** |
-| `fac_clarity_imp` | 1–4 | То же — **importance** |
-| `fac_comment` | text | Open feedback about the teaching team |
+| Колонка | Шкала | Смысл |
+|---|---|---|
+| `prog_clarity_score` | 1–4 | Понятность содержания дисциплин и их взаимосвязи (оценка) |
+| `prog_clarity_imp` | 1–4 | То же (важность) |
+| `prog_deadlines_score` | 1–4 | Реалистичность сроков и объема заданий (оценка) |
+| `prog_deadlines_imp` | 1–4 | То же (важность) |
+| `prog_relevance_score` | 1–4 | Связь дисциплин с профессиональной деятельностью (оценка) |
+| `prog_relevance_imp` | 1–4 | То же (важность) |
+| `prog_workload_score` | 1–4 | Оптимальность учебной нагрузки (оценка) |
+| `prog_workload_imp` | 1–4 | То же (важность) |
+| `prog_comment` | text | Открытый комментарий о программе |
 
----
+## Координатор учебного отдела (матрица)
 
-## Q5 — Curator (matrix, score + importance)
+| Колонка | Шкала | Смысл |
+|---|---|---|
+| `coord_respect_score` | 1–4 | Уважительность взаимодействия координатора (оценка) |
+| `coord_respect_imp` | 1–4 | То же (важность) |
+| `coord_results_score` | 1–4 | Результативность обращений к координатору (оценка) |
+| `coord_results_imp` | 1–4 | То же (важность) |
+| `coord_timely_score` | 1–4 | Своевременность информирования координатором (оценка) |
+| `coord_timely_imp` | 1–4 | То же (важность) |
+| `coord_help_score` | 1–4 | Готовность координатора помогать (оценка) |
+| `coord_help_imp` | 1–4 | То же (важность) |
+| `coord_comment` | text | Открытый комментарий о взаимодействии с координатором |
 
-| Column | Scale | Criterion |
-|--------|-------|-----------|
-| `cur_timely_score` | 1–4 | Куратор своевременно сообщает необходимую информацию — **satisfaction** |
-| `cur_timely_imp` | 1–4 | То же — **importance** |
-| `cur_help_score` | 1–4 | Куратор готов оказать помощь, если у меня появляются вопросы или проблемы — **satisfaction** |
-| `cur_help_imp` | 1–4 | То же — **importance** |
-| `cur_comment` | text | Open feedback about the curator |
+## Качество оценивания
 
----
+| Колонка | Шкала | Вопрос |
+|---|---|---|
+| `assess_criteria_timely` | 1–5 | Критерии оценивания были представлены вовремя |
+| `assess_order_clear` | 1–5 | Порядок сдачи и оценивания был понятен |
+| `assess_consistent` | 1–5 | Оценивание проводилось по заявленным критериям |
+| `assess_comment` | text | Открытый комментарий по оцениванию |
 
-## Q7 — Programme content (matrix, score + importance)
+## Гуманитарные / общеобразовательные дисциплины
 
-| Column | Scale | Criterion |
-|--------|-------|-----------|
-| `prog_clarity_score` | 1–4 | Мне было понятно содержание дисциплин и их взаимосвязь — **satisfaction** |
-| `prog_clarity_imp` | 1–4 | То же — **importance** |
-| `prog_deadlines_score` | 1–4 | Я мог(-ла) выполнить задания в нужные сроки и в достаточном объёме — **satisfaction** |
-| `prog_deadlines_imp` | 1–4 | То же — **importance** |
-| `prog_relevance_score` | 1–4 | Мне было понятно, как дисциплины связаны с профессиональной деятельностью — **satisfaction** |
-| `prog_relevance_imp` | 1–4 | То же — **importance** |
-| `prog_workload_score` | 1–4 | Количество занятий в неделю было оптимальным — **satisfaction** |
-| `prog_workload_imp` | 1–4 | То же — **importance** |
-| `prog_comment` | text | Open feedback about the programme |
+### Общеобразовательные дисциплины (Foundation Art and Design)
 
----
-
-## Q9 — Study office coordinator (matrix, score + importance)
-
-| Column | Scale | Criterion |
-|--------|-------|-----------|
-| `coord_respect_score` | 1–4 | Координатор уважительно взаимодействовал со мной — **satisfaction** |
-| `coord_respect_imp` | 1–4 | То же — **importance** |
-| `coord_results_score` | 1–4 | Мои обращения к координатору приводили к ожидаемому результату — **satisfaction** |
-| `coord_results_imp` | 1–4 | То же — **importance** |
-| `coord_timely_score` | 1–4 | Координатор сообщает информацию об образовательном процессе своевременно — **satisfaction** |
-| `coord_timely_imp` | 1–4 | То же — **importance** |
-| `coord_help_score` | 1–4 | Координатор готов оказать помощь, если возникают вопросы или проблемы — **satisfaction** |
-| `coord_help_imp` | 1–4 | То же — **importance** |
-| `coord_comment` | text | Open feedback about the study office coordinator |
-
----
-
-## Q11–13 — Assessment quality
-
-| Column | Scale | Question (RU) |
-|--------|-------|---------------|
-| `assess_criteria_timely` | 1–4 | Преподаватели своевременно представили критерии оценивания работ |
-| `assess_order_clear` | 1–4 | Преподаватели ясно определили порядок сдачи и оценивания работ |
-| `assess_consistent` | 1–4 | Преподаватели проводили оценивание в соответствии с заявленными критериями |
-| `assess_comment` | text | Open feedback about assessment |
-
----
-
-## Q17/18 — Humanities & general education teachers
-
-Two sets of columns exist because the question was named differently in different programme surveys. They measure the same construct (rating of teachers of shared/general disciplines) but the subject lists differ slightly.
-
-### "Общеобразовательные дисциплины" — Foundation Art and Design only
-
-| Column | Scale | Subject |
-|--------|-------|---------|
+| Колонка | Шкала | Дисциплина |
+|---|---|---|
 | `gen_ed_critical_thinking` | 1–4 | Критическое мышление |
 | `gen_ed_history` | 1–4 | История России |
 | `gen_ed_foreign_lang` | 1–4 | Иностранный язык |
 | `gen_ed_safety` | 1–4 | Безопасность жизнедеятельности |
 | `gen_ed_statehood` | 1–4 | Основы российской государственности |
 
-### "Гуманитарные дисциплины" — all other programmes
+### Гуманитарные дисциплины (остальные программы)
 
-| Column | Scale | Subject |
-|--------|-------|---------|
+| Колонка | Шкала | Дисциплина |
+|---|---|---|
 | `hum_critical_thinking` | 1–4 | Критическое мышление |
 | `hum_history` | 1–4 | История России |
 | `hum_statehood` | 1–4 | Основы российской государственности |
 | `hum_foreign_lang` | 1–4 | Иностранный язык |
-| `hum_philosophy` | 1–4 | Философия *(2nd–4th year cohorts only)* |
-| `hum_communication` | 1–4 | Теория и практика коммуникации *(2nd–4th year cohorts only)* |
+| `hum_philosophy` | 1–4 | Философия (обычно 2–4 курс) |
+| `hum_communication` | 1–4 | Теория и практика коммуникации (обычно 2–4 курс) |
 
----
+## Комментарий о лекциях и семинарах
 
-## Seminar / lecture comment
+| Колонка | Тип | Описание |
+|---|---|---|
+| `seminar_comment` | text | Открытый комментарий о лекционных/семинарских занятиях |
 
-| Column | Type | Description |
-|--------|------|-------------|
-| `seminar_comment` | text | Free-text feedback on lectures and seminar tracks |
+## Инфраструктура кампуса
 
----
+| Колонка | Шкала | Параметр |
+|---|---|---|
+| `infra_library` | 1–5 | Доступность и работа библиотеки |
+| `infra_wellbeing` | 1–5 | Доступность и качество сервиса Wellbeing |
+| `infra_food` | 1–5 | Доступность и качество еды на кампусе |
+| `infra_software` | 1–5 | Работоспособность ПО в аудиториях |
+| `infra_equipment` | 1–5 | Работоспособность оборудования в аудиториях |
+| `infra_classrooms` | 1–5 | Комфорт пребывания в аудиториях |
+| `infra_workshops` | 1–5 | Комфорт в мастерских / ресурсных центрах / репетиционных |
 
-## Q19–25 — Campus infrastructure
+## NPS и финальный комментарий
 
-| Column | Scale | Item |
-|--------|-------|------|
-| `infra_library` | 1–4 | Доступность и работа библиотеки |
-| `infra_wellbeing` | 1–4 | Доступность и качество сервиса Wellbeing |
-| `infra_food` | 1–4 | Доступность и качество еды на кампусе |
-| `infra_software` | 1–4 | Работоспособность программного обеспечения в аудиториях |
-| `infra_equipment` | 1–4 | Работоспособность оборудования в аудиториях |
-| `infra_classrooms` | 1–4 | Комфорт пребывания в аудиториях |
-| `infra_workshops` | 1–4 | Комфорт пребывания в мастерских / ресурсных центрах / репетиционных комнатах |
+| Колонка | Шкала | Описание |
+|---|---|---|
+| `nps` | 0–10 | Готовность рекомендовать школу |
+| `comment_final` | text | Дополнительные комментарии и предложения |
 
----
+## Дополнительные вопросы (есть не у всех программ)
 
-## Q26 — NPS & final comment
+| Колонка | Шкала | Где встречается | Вопрос |
+|---|---|---|---|
+| `prev_sem_relevance` | 1–5 | Многокурсовые программы | Насколько дисциплины предыдущего семестра помогли в текущем |
+| `skill_confidence` | 1–5 | Обычно старшие курсы | Уверенность в применении знаний и навыков на практике |
+| `postgrad_masters` | 0/1 | Выпускные когорты | План продолжить обучение |
+| `postgrad_same_field` | 0/1 | Выпускные когорты | План работать в выбранной сфере |
+| `postgrad_other_field` | 0/1 | Выпускные когорты | План работать в другой сфере |
+| `postgrad_other` | 0/1 | Выпускные когорты | Другой вариант |
 
-| Column | Scale | Description |
-|--------|-------|-------------|
-| `nps` | 0–10 | Насколько вероятно, что вы порекомендуете школу (Net Promoter Score scale) |
-| `comment_final` | text | Additional comments and suggestions |
+## Связанные файлы проекта
 
----
+| Файл | Назначение |
+|---|---|
+| `data/raw/program_surveys/*.csv` | Исходные CSV по программам |
+| `data/reference/Реестр программ.csv` | Реестр программ (курс/школа) |
+| `data/interim/combined.csv` | Объединенный wide-файл (включая преподавателей) |
+| `data/processed/combined_general.csv` | Общие вопросы в русских названиях |
+| `data/processed/combined_teachers.csv` | Оценки преподавателей в long-формате |
+| `combined_general_agg.csv` | Итоговый агрегированный файл (латинские short-name колонки) |
 
-## Additional questions (present in a subset of programmes)
-
-These items appear only in surveys for multi-year programmes or graduating cohorts.
-
-| Column | Scale | Programmes | Question (RU) |
-|--------|-------|------------|---------------|
-| `prev_sem_relevance` | 1–4 | Most multi-year programmes | Насколько дисциплины предыдущего семестра помогли вам в освоении учебного материала текущего семестра? |
-| `skill_confidence` | 1–4 | Multi-year programmes, years 3+ | Насколько уверенно вы можете применить полученные знания и навыки в реальной профессиональной практике? |
-| `postgrad_masters` | 0/1 | Graduating cohorts | Планируете продолжение обучения в магистратуре или дополнительном образовании |
-| `postgrad_same_field` | 0/1 | Graduating cohorts | Планируете работу в выбранной сфере |
-| `postgrad_other_field` | 0/1 | Graduating cohorts | Планируете работу в другой сфере |
-| `postgrad_other` | 0/1 | Graduating cohorts | Другой вариант (не уточнён в анкете) |
-
----
-
-## Related files
-
-| File | Description |
-|------|-------------|
-| `combined.csv` | All 310 columns including individual teacher ratings (wide format) |
-| `combined_general.csv` | 72 columns, original Russian column names |
-| `combined_general_agg.csv` | **This file** — 72 columns, short Latin names |
-| `combined_teachers.csv` | Long-format teacher ratings: `program`, `year`, `resp_id`, `Преподаватель`, `Оценка` |
