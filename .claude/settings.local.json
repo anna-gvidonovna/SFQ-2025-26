@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \":*)",
+      "Bash(pip3 install pandas openpyxl)",
+      "Bash(/opt/anaconda3/bin/python3 -c \":*)",
+      "Bash(conda run -n base python --version)",
+      "Bash(jupyter kernelspec list)",
+      "Bash(/opt/anaconda3/bin/python3.11 -W ignore -c \"import pandas; print\\(pandas.__version__\\)\")",
+      "Bash(pip3.9 install pandas openpyxl)",
+      "Bash(python3.9 -c \"import pandas; print\\(pandas.__version__\\)\")",
+      "Bash(python3 -m pip install pandas openpyxl)",
+      "Bash(python3 -c \"import pandas; print\\(pandas.__version__\\)\")",
+      "Bash(unzip -p \"/Users/mtvbsl/Library/CloudStorage/Dropbox/UU/Code/SFQ 2025:26/Foundation Art and Design.xlsx\" xl/worksheets/sheet1.xml)",
+      "Bash(unzip -p \"/Users/mtvbsl/Library/CloudStorage/Dropbox/UU/Code/SFQ 2025:26/Foundation Art and Design.xlsx\" xl/sharedStrings.xml)",
+      "Bash(python3 -c \"import sys; import xml.etree.ElementTree as ET; tree = ET.parse\\(sys.stdin\\); root = tree.getroot\\(\\); ns = {''ss'': ''http://schemas.openxmlformats.org/spreadsheetml/2006/main''}; strings = [si.find\\(''ss:t'', ns\\).text if si.find\\(''ss:t'', ns\\) is not None else '''' for si in root.findall\\(''ss:si'', ns\\)]; print\\(''Header strings \\(first 30\\):''\\); [print\\(f''{i}: {s[:80]}''\\) for i, s in enumerate\\(strings[:30]\\)]\")",
+      "Bash(for file in \"Foundation Art and Design.xlsx\" \"Анимация.xlsx\" \"Семестровый опрос_ с общегуманитарными дисц.xlsx\")",
+      "Bash(do echo \"====== $file ======\" unzip -p \"/Users/mtvbsl/Library/CloudStorage/Dropbox/UU/Code/SFQ 2025:26/$file\" xl/sharedStrings.xml)",
+      "Bash(for file in \"Foundation Art and Design.xlsx\" \"Анимация.xlsx\" \"Кинопроизводство.xlsx\")",
+      "Bash(do echo \"====== $file ======\" unzip -p \"/Users/mtvbsl/Library/CloudStorage/Dropbox/UU/Code/SFQ 2025:26/$file\" xl/workbook.xml)",
+      "Bash(done)",
+      "Bash(python3:*)",
+      "Bash(jupyter --version)",
+      "Bash(/opt/anaconda3/bin/python3 -W ignore -c \":*)",
+      "Bash(/opt/anaconda3/bin/pip install statsmodels scikit-posthocs pingouin -q)",
+      "Bash(/opt/anaconda3/bin/pip install statsmodels scikit-posthocs pingouin --quiet)",
+      "Bash(pip3 list)",
+      "Bash(pip3 show pandas)",
+      "Read(//Library/Python/3.9/lib/python/**)",
+      "Bash(/opt/anaconda3/bin/pip list)",
+      "Bash(/opt/anaconda3/bin/python3 -c \"from scipy.stats import kruskal; print\\(''scipy kruskal ok''\\)\")",
+      "Bash(/opt/anaconda3/bin/python3 -c \"import scipy; print\\(scipy.__version__\\)\")"
+    ]
+  }
+}

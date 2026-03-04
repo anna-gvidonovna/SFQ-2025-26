@@ -516,6 +516,7 @@ def render_overview(df: pd.DataFrame) -> None:
             {"Вкладка": "NPS", "Что внутри": "Промоутеры/пассивы/критики, состав по программам, NPS по программам."},
             {"Вкладка": "CSI", "Что внутри": "Индекс удовлетворенности по блокам и общий CSI, формулы и интерпретация."},
             {"Вкладка": "Преподаватели", "Что внутри": "Оценки по школам/программам/курсам и по конкретным преподавателям, включая сглаживание."},
+            {"Вкладка": "Комментарии", "Что внутри": "Все открытые текстовые ответы: фильтр по разделу, программе, школе, курсу и ключевому слову."},
             {"Вкладка": "Кодбук", "Что внутри": "Полное описание полей, шкал и структуры данных."},
         ]
     )
@@ -1301,6 +1302,123 @@ def render_teachers(df_teachers: pd.DataFrame) -> None:
     st.dataframe(by_prog, width="stretch")
 
 
+def render_comments(df: pd.DataFrame) -> None:
+    _COMMENT_SECTIONS: dict[str, str] = {
+        "cur_comment":     "Куратор",
+        "prog_comment":    "Программа",
+        "coord_comment":   "Учебный отдел",
+        "assess_comment":  "Оценивание",
+        "fac_comment":     "Преподаватели",
+        "seminar_comment": "Семинары/лекции",
+        "comment_final":   "Общий комментарий",
+    }
+
+    st.subheader("Комментарии")
+    st.info(
+        "Что здесь: все открытые текстовые ответы из опроса. "
+        "Можно фильтровать по разделу опроса, программе, школе, году и ключевому слову."
+    )
+    render_interp(
+        "Как читать комментарии",
+        [
+            "Каждая строка — один ответ одного студента по одному разделу анкеты.",
+            "Пустые ответы отфильтрованы автоматически; глобальные фильтры (школа, курс, программа) применяются.",
+            "Используйте поле поиска, чтобы найти ответы по ключевому слову.",
+            "Раздел «Общий комментарий» — финальное свободное поле анкеты, наиболее содержательное.",
+        ],
+    )
+
+    available: dict[str, str] = {col: lbl for col, lbl in _COMMENT_SECTIONS.items() if col in df.columns}
+    if not available:
+        st.warning("В данных не найдено колонок с комментариями.")
+        return
+
+    # ── Metric cards: count per section ───────────────────────────────────
+    counts: dict[str, int] = {
+        lbl: int(df[col].dropna().astype(str).str.strip().ne("").sum())
+        for col, lbl in available.items()
+    }
+    total_comments = sum(counts.values())
+
+    c_total, *section_cols = st.columns(1 + len(available))
+    c_total.metric("Всего комментариев", total_comments)
+    for col_widget, (lbl, cnt) in zip(section_cols, counts.items()):
+        col_widget.metric(lbl, cnt)
+
+    # ── Bar chart ──────────────────────────────────────────────────────────
+    if total_comments > 0:
+        st.caption("График: количество непустых комментариев по разделам опроса.")
+        counts_df = (
+            pd.DataFrame(list(counts.items()), columns=["Раздел", "Количество"])
+            .sort_values("Количество", ascending=True)
+        )
+        fig = px.bar(
+            counts_df,
+            x="Количество",
+            y="Раздел",
+            orientation="h",
+            title="Комментарии по разделам",
+            color="Количество",
+            color_continuous_scale="Blues",
+            labels={"Количество": "Кол-во ответов", "Раздел": ""},
+        )
+        fig.update_layout(height=280, coloraxis_showscale=False, margin=dict(l=0, r=0, t=36, b=0))
+        st.plotly_chart(fig, width="stretch")
+
+    st.markdown("---")
+    st.markdown("### Просмотр комментариев")
+
+    # ── Controls ───────────────────────────────────────────────────────────
+    ctrl1, ctrl2 = st.columns([2, 3])
+    with ctrl1:
+        selected_sections = st.multiselect(
+            "Раздел опроса",
+            options=list(available.values()),
+            default=[lbl for lbl in available.values() if counts[lbl] > 0],
+        )
+    with ctrl2:
+        search_text = st.text_input("Поиск по тексту", placeholder="Ключевое слово…")
+
+    # ── Build long-format table ────────────────────────────────────────────
+    prog_col = "program_display" if "program_display" in df.columns else "program"
+    meta = [c for c in [prog_col, "school", "year"] if c in df.columns]
+    rename_meta = {prog_col: "Программа", "school": "Школа", "year": "Курс"}
+
+    rows = []
+    for col, lbl in available.items():
+        if lbl not in selected_sections:
+            continue
+        sub = df[meta + [col]].copy()
+        sub = sub[sub[col].notna() & sub[col].astype(str).str.strip().ne("")]
+        sub = sub.rename(columns={**rename_meta, col: "Комментарий"})
+        sub.insert(0, "Раздел", lbl)
+        rows.append(sub)
+
+    if not rows:
+        st.info("Нет комментариев по выбранным разделам.")
+        return
+
+    comments_df = pd.concat(rows, ignore_index=True)
+
+    if search_text.strip():
+        mask = comments_df["Комментарий"].str.contains(search_text.strip(), case=False, na=False)
+        comments_df = comments_df[mask]
+
+    st.caption(f"Показано: **{len(comments_df)}** комментариев.")
+    st.dataframe(
+        comments_df,
+        width="stretch",
+        hide_index=True,
+        column_config={
+            "Раздел":      st.column_config.TextColumn("Раздел",      width="small"),
+            "Программа":   st.column_config.TextColumn("Программа",   width="medium"),
+            "Школа":       st.column_config.TextColumn("Школа",       width="small"),
+            "Курс":        st.column_config.TextColumn("Курс",        width="small"),
+            "Комментарий": st.column_config.TextColumn("Комментарий", width="large"),
+        },
+    )
+
+
 def render_codebook() -> None:
     st.subheader("Кодбук")
     st.info("Что здесь: описание всех колонок и шкал в данных `combined_general_agg.csv`.")
@@ -1349,7 +1467,7 @@ def main() -> None:
         teachers_df = pd.DataFrame()
 
     tabs = st.tabs(
-        ["Обзор", "Описательные", "Сравнение программ", "Корреляции", "Матрица приоритетов", "NPS", "CSI", "Преподаватели", "Кодбук"]
+        ["Обзор", "Описательные", "Сравнение программ", "Корреляции", "Матрица приоритетов", "NPS", "CSI", "Преподаватели", "Комментарии", "Кодбук"]
     )
     with tabs[0]:
         render_overview(dashboard_df)
@@ -1368,6 +1486,8 @@ def main() -> None:
     with tabs[7]:
         render_teachers(teachers_df)
     with tabs[8]:
+        render_comments(dashboard_df)
+    with tabs[9]:
         render_codebook()
 
 

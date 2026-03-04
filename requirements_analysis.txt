@@ -1,0 +1,8 @@
+# Dependencies for generate_teacher_pdfs.py
+# Standalone script, separate from the main Streamlit app.
+#
+# Install: pip install -r requirements_analysis.txt
+
+pandas>=2.0
+numpy>=1.26
+matplotlib>=3.7
