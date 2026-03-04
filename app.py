@@ -1318,7 +1318,7 @@ def render_codebook() -> None:
 
 
 def main() -> None:
-    st.title("SFQ 2025-26")
+    st.title("SFQ 2025-26: Semester A")
     st.caption("Источник данных: `combined_general_agg.csv`")
 
     df = load_data("combined_general_agg.csv")
