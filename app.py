@@ -461,7 +461,7 @@ def add_block_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def render_overview(df: pd.DataFrame) -> None:
     st.subheader("Обзор")
-    st.info("Что здесь: ключевые показатели по выборке и базовые распределения NPS.")
+    st.info("Что здесь: ключевые показатели по выборке.")
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Ответов", f"{len(df):,}", help="Количество анкет после применения фильтров.")
