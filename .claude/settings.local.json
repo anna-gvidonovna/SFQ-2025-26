@@ -29,7 +29,12 @@
       "Read(//Library/Python/3.9/lib/python/**)",
       "Bash(/opt/anaconda3/bin/pip list)",
       "Bash(/opt/anaconda3/bin/python3 -c \"from scipy.stats import kruskal; print\\(''scipy kruskal ok''\\)\")",
-      "Bash(/opt/anaconda3/bin/python3 -c \"import scipy; print\\(scipy.__version__\\)\")"
+      "Bash(/opt/anaconda3/bin/python3 -c \"import scipy; print\\(scipy.__version__\\)\")",
+      "Bash(pip index versions streamlit)",
+      "Bash(pip install streamlit==99)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(git ls-files *)",
+      "Bash(rm docs/codebook.md)"
     ]
   }
 }

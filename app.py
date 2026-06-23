@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -163,6 +164,9 @@ COL_LABELS = {
     "hum_foreign_lang": "Гуманитарные: иностранный язык",
     "hum_philosophy": "Гуманитарные: философия",
     "hum_communication": "Гуманитарные: теория и практика коммуникации",
+    "goal_achieved": "Достижение целей на программе (шкала 1–7)",
+    "navigation_ease": "Лёгкость ориентирования в учебном процессе (шкала 1–7)",
+    "class_comfort": "Комфорт на занятиях (шкала 1–7)",
     "prev_sem_relevance": "Связь с предыдущим семестром",
     "skill_confidence": "Уверенность в применении навыков",
     "postgrad_masters": "План: магистратура/доп. образование",
@@ -311,6 +315,9 @@ def get_descriptive_metrics(df: pd.DataFrame) -> list[str]:
         "hum_foreign_lang",
         "hum_philosophy",
         "hum_communication",
+        "goal_achieved",
+        "navigation_ease",
+        "class_comfort",
         "prev_sem_relevance",
         "skill_confidence",
         "postgrad_masters",
@@ -414,6 +421,57 @@ def bootstrap_mean_ci(x: pd.Series, n_boot: int = 3000, ci: int = 95, seed: int 
     return vals.mean(), np.percentile(draws, alpha), np.percentile(draws, 100 - alpha), n
 
 
+@st.cache_data(show_spinner=False)
+def load_contingent(path: str = "data/reference/contingent.csv") -> pd.DataFrame:
+    p = Path(path)
+    if not p.exists():
+        return pd.DataFrame(columns=["program", "year", "school", "contingent"])
+    df = pd.read_csv(p)
+    df["contingent"] = pd.to_numeric(df["contingent"], errors="coerce")
+    df = normalize_unicode_columns(df)
+    return df
+
+
+def filter_contingent(cont: pd.DataFrame, f: FilterState) -> pd.DataFrame:
+    """Filter the enrollment table to match a FilterState.
+
+    Rows with an empty `year` belong to single-course programmes and are kept
+    regardless of the year filter (the programme has no course split)."""
+    out = cont.copy()
+    if out.empty:
+        return out
+    if f.programs:
+        out = out[out["program"].isin(f.programs)]
+    if f.schools:
+        out = out[out["school"].isin(f.schools) | out["school"].isna()]
+    if f.years:
+        out = out[out["year"].isin(f.years) | out["year"].isna()]
+    return out
+
+
+def margin_of_error_pct(n: int, N: float, z: float = 1.96) -> float:
+    """95% margin of error (%) for a proportion at worst case p=0.5,
+    with finite population correction. Returns 0 for a census (n>=N)."""
+    if n <= 0 or not np.isfinite(N) or N <= 0:
+        return float("nan")
+    if n >= N:
+        return 0.0
+    fpc = (N - n) / (N - 1) if N > 1 else 0.0
+    return float(z * np.sqrt(0.25 / n) * np.sqrt(fpc) * 100.0)
+
+
+def response_rate_table(df_slice: pd.DataFrame, cont_slice: pd.DataFrame) -> pd.DataFrame:
+    """Per-programme response rate / margin of error for the current slice."""
+    n_by_prog = df_slice.groupby("program").size().rename("n")
+    N_by_prog = cont_slice.groupby("program")["contingent"].sum().rename("N")
+    rr = pd.concat([n_by_prog, N_by_prog], axis=1)
+    rr["n"] = rr["n"].fillna(0).astype(int)
+    rr["RR, %"] = np.where(rr["N"] > 0, rr["n"] / rr["N"] * 100.0, np.nan)
+    rr["Погрешность ±%"] = [margin_of_error_pct(int(r.n), r.N) for r in rr.itertuples()]
+    rr = rr.reset_index().rename(columns={"program": "Программа", "N": "Контингент"})
+    return rr
+
+
 def build_filters(df: pd.DataFrame) -> FilterState:
     st.sidebar.header("Фильтры")
     st.sidebar.caption("Фильтры применяются ко всем вкладкам дашборда.")
@@ -459,7 +517,85 @@ def add_block_features(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def render_overview(df: pd.DataFrame) -> None:
+def render_response_rate(df: pd.DataFrame, cont_slice: pd.DataFrame | None, combined_mode: bool = False) -> None:
+    """Response rate + margin of error for the current slice, using enrollment."""
+    if cont_slice is None or cont_slice.empty:
+        return
+
+    if combined_mode:
+        st.markdown("### Отклик и достоверность")
+        st.info(
+            "В режиме «Оба семестра» response rate не считается: ответы двух волн "
+            "опроса нельзя сопоставлять с одним контингентом (студенты могли отвечать "
+            "дважды). По-семестровый response rate и погрешность — на вкладке **«Динамика»**."
+        )
+        return
+
+    n = len(df)
+    N = float(cont_slice["contingent"].sum())
+    if N <= 0:
+        return
+
+    rr = n / N * 100.0
+    moe = margin_of_error_pct(n, N)
+
+    st.markdown("### Отклик и достоверность")
+    st.caption(
+        "Response rate и предельная погрешность оценивают, насколько выборка "
+        "представляет генеральную совокупность (контингент)."
+    )
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Контингент (N)", f"{int(round(N)):,}", help="Число студентов в выбранных программах/курсах (из `Контингент.xlsx`).")
+    k2.metric("Ответов (n)", f"{n:,}", help="Число анкет в текущем срезе.")
+    k3.metric("Response rate", f"{min(rr, 100):.1f}%", help="Доля контингента, заполнившая анкету (n / N).")
+    k4.metric(
+        "Погрешность ±",
+        f"{moe:.1f}%" if np.isfinite(moe) else "н/д",
+        help="Предельная погрешность 95% (p=0.5, с поправкой на конечную совокупность). Чем меньше, тем надёжнее.",
+    )
+    if rr > 100:
+        st.caption("⚠ По части программ ответов больше, чем в контингенте — вероятно, расхождение в данных по малым группам.")
+
+    render_interp(
+        "Как читать отклик и погрешность",
+        [
+            "Если response rate высокий (>50%), то выборка хорошо представляет контингент.",
+            "Если предельная погрешность мала (например, ±5%), то оценкам долей/средних можно доверять.",
+            "Если по программе мало ответов и большой контингент, то её отдельные выводы менее надёжны.",
+            "Погрешность считается для доли при наихудшем случае p=0.5, поэтому это консервативная (верхняя) оценка.",
+        ],
+    )
+
+    rr_tbl = response_rate_table(df, cont_slice)
+    if not rr_tbl.empty:
+        # подставляем короткие имена, если есть
+        if "program_display" in df.columns:
+            disp = df.groupby("program")["program_display"].first()
+            rr_tbl = rr_tbl.merge(disp.rename("Короткое имя"), left_on="Программа", right_index=True, how="left")
+        rr_tbl = round_df(rr_tbl.sort_values("RR, %", ascending=False))
+        st.caption("Таблица: response rate и погрешность по программам.")
+        st.dataframe(rr_tbl, width="stretch", hide_index=True)
+
+        plot_df = rr_tbl.copy()
+        plot_df["__y"] = plot_df.get("Короткое имя", plot_df["Программа"]).fillna(plot_df["Программа"])
+        plot_df["RR_disp"] = plot_df["RR, %"].clip(upper=100)
+        fig = px.bar(
+            plot_df.sort_values("RR, %"),
+            x="RR_disp",
+            y="__y",
+            orientation="h",
+            color="RR_disp",
+            color_continuous_scale="Tealgrn",
+            title="Response rate по программам",
+            labels={"RR_disp": "Response rate, %", "__y": "Программа"},
+            hover_data={"Программа": True, "__y": False, "Контингент": True, "n": True, "Погрешность ±%": ":.1f"},
+        )
+        fig.update_layout(height=600, yaxis_title="", coloraxis_showscale=False)
+        fig.update_xaxes(range=[0, 100])
+        st.plotly_chart(fig, width="stretch")
+
+
+def render_overview(df: pd.DataFrame, cont_slice: pd.DataFrame | None = None, combined_mode: bool = False) -> None:
     st.subheader("Обзор")
     st.info("Что здесь: ключевые показатели по выборке.")
 
@@ -480,6 +616,8 @@ def render_overview(df: pd.DataFrame) -> None:
             "Если минимум очень низкий, а максимум высокий, то мнения респондентов поляризованы.",
         ],
     )
+
+    render_response_rate(df, cont_slice, combined_mode)
 
     if "program" in df.columns:
         st.caption("График: размер выборки по программам.")
@@ -509,6 +647,7 @@ def render_overview(df: pd.DataFrame) -> None:
     st.markdown("### Навигатор по вкладкам")
     legend_df = pd.DataFrame(
         [
+            {"Вкладка": "Динамика", "Что внутри": "Сравнение 1 и 2 семестров по сопоставимым метрикам и response rate."},
             {"Вкладка": "Описательные", "Что внутри": "Средние, медианы, min/max, доверительные интервалы и сравнение по программам."},
             {"Вкладка": "Сравнение программ", "Что внутри": "ANOVA, Kruskal-Wallis, Levene, Dunn post-hoc для выбранной метрики."},
             {"Вкладка": "Корреляции", "Что внутри": "Матрица Спирмена и топ положительных/отрицательных связей."},
@@ -538,7 +677,7 @@ def render_descriptives(df: pd.DataFrame) -> None:
         available_metrics,
         default=default_metrics if default_metrics else available_metrics[:10],
         format_func=label,
-        help="Доступны ключевые и дополнительные метрики из `combined_general_agg.csv`.",
+        help="Доступны ключевые и дополнительные метрики из выбранного среза данных.",
     )
     if not selected:
         st.info("Выберите хотя бы одну метрику.")
@@ -1161,7 +1300,7 @@ def render_teachers(df_teachers: pd.DataFrame) -> None:
         "Что здесь: оценки преподавателей в разрезах школы/программы/курса и рейтинг по конкретным преподавателям."
     )
     if df_teachers.empty or "rating" not in df_teachers.columns:
-        st.warning("Файл `data/processed/combined_teachers_agg.csv` не найден или пуст.")
+        st.warning("Данные по преподавателям для выбранного среза не найдены или пусты.")
         return
 
     d = df_teachers.dropna(subset=["rating"]).copy()
@@ -1419,29 +1558,292 @@ def render_comments(df: pd.DataFrame) -> None:
     )
 
 
-def render_codebook() -> None:
-    st.subheader("Кодбук")
-    st.info("Что здесь: описание всех колонок и шкал в данных `combined_general_agg.csv`.")
-    codebook_path = Path("docs/codebook.md")
-    if not codebook_path.exists():
-        codebook_path = Path("codebook.md")
+DYNAMICS_METRICS = [
+    "nps",
+    "satisf_overall",
+    "expect_match",
+    "assess_criteria_timely",
+    "assess_order_clear",
+    "assess_consistent",
+    "infra_library",
+    "infra_wellbeing",
+    "infra_food",
+    "infra_software",
+    "infra_equipment",
+    "infra_classrooms",
+    "infra_workshops",
+    "faculty_mean",
+    "curator_mean",
+    "program_mean",
+    "coordinator_mean",
+    "assessment_mean",
+    "infrastructure_mean",
+    "csi_overall",
+]
 
-    codebook = load_codebook(str(codebook_path))
-    if not codebook:
-        st.warning("Файл кодбука не найден (`docs/codebook.md` или `codebook.md`).")
+
+def _prepare_semester_slice(general_path: str, filters: FilterState) -> pd.DataFrame:
+    raw = load_combined((general_path,))
+    if raw.empty:
+        return raw
+    raw = safe_numeric(raw, num_cols(raw))
+    sliced = apply_filters(raw, filters)
+    prepared = add_program_display(add_block_features(sliced), short_labels=filters.short_program_labels)
+    csi = compute_csi_frame(prepared)
+    if "csi_Общий" in csi.columns:
+        prepared["csi_overall"] = csi["csi_Общий"]
+    return prepared
+
+
+def _metric_mean(df: pd.DataFrame, col: str) -> float:
+    if df.empty or col not in df.columns:
+        return float("nan")
+    return float(pd.to_numeric(df[col], errors="coerce").mean())
+
+
+def render_dynamics(filters: FilterState, cont_slice: pd.DataFrame | None) -> None:
+    st.subheader("Динамика между семестрами")
+    st.info(
+        "Что здесь: сравнение 1 и 2 семестров по сопоставимым метрикам "
+        "(применяются те же фильтры программ/курсов/школ). "
+        "Загружаются оба семестра независимо от выбора в сайдбаре."
+    )
+    st.caption(
+        "Сравниваются только метрики с единой шкалой в обоих семестрах. "
+        "`prev_sem_relevance`, `skill_confidence` (сменилась шкала) и вопросы 1–7 (только 2 семестр) исключены."
+    )
+
+    s1 = _prepare_semester_slice(SEMESTER_CONFIG["1 семестр"]["general"], filters)
+    s2 = _prepare_semester_slice(SEMESTER_CONFIG["2 семестр"]["general"], filters)
+    if s1.empty or s2.empty:
+        st.warning("Недостаточно данных в одном из семестров для текущего фильтра.")
         return
 
-    st.caption(f"Источник: `{codebook_path}`")
-    st.markdown(codebook)
+    render_interp(
+        "Как читать динамику",
+        [
+            "Δ = значение во 2 семестре минус значение в 1 семестре.",
+            "Если Δ положительная, метрика выросла; если отрицательная — снизилась.",
+            "Малые Δ при небольшом числе ответов могут быть случайными — сверяйтесь с response rate.",
+            "NPS здесь — среднее по шкале 0–10 (не классический индекс промоутеров минус критиков).",
+        ],
+    )
+
+    # ── Отклик по семестрам ─────────────────────────────────────────────────
+    N = float(cont_slice["contingent"].sum()) if cont_slice is not None and not cont_slice.empty else float("nan")
+    rr_rows = []
+    for name, d in [("1 семестр", s1), ("2 семестр", s2)]:
+        n = len(d)
+        rr = n / N * 100.0 if np.isfinite(N) and N > 0 else float("nan")
+        rr_rows.append(
+            {
+                "Семестр": name,
+                "Ответов (n)": n,
+                "Контингент (N)": int(round(N)) if np.isfinite(N) else None,
+                "Response rate, %": rr,
+                "Погрешность ±%": margin_of_error_pct(n, N) if np.isfinite(N) else float("nan"),
+            }
+        )
+    st.caption("Таблица: отклик и достоверность по семестрам.")
+    st.dataframe(round_df(pd.DataFrame(rr_rows)), width="stretch", hide_index=True)
+
+    # ── Сводная таблица метрик ──────────────────────────────────────────────
+    available = [m for m in DYNAMICS_METRICS if (m in s1.columns or m in s2.columns)]
+    rows = []
+    for m in available:
+        v1, v2 = _metric_mean(s1, m), _metric_mean(s2, m)
+        rows.append(
+            {
+                "Метрика": label(m) if m != "csi_overall" else "CSI (общий)",
+                "1 семестр": v1,
+                "2 семестр": v2,
+                "Δ (2−1)": (v2 - v1) if (np.isfinite(v1) and np.isfinite(v2)) else float("nan"),
+            }
+        )
+    comp = round_df(pd.DataFrame(rows))
+    st.caption("Таблица: средние по сопоставимым метрикам, 1 → 2 семестр.")
+    st.dataframe(comp, width="stretch", hide_index=True)
+
+    # ── График дельт ────────────────────────────────────────────────────────
+    plot = comp.dropna(subset=["Δ (2−1)"]).sort_values("Δ (2−1)")
+    if not plot.empty:
+        fig = px.bar(
+            plot,
+            x="Δ (2−1)",
+            y="Метрика",
+            orientation="h",
+            color="Δ (2−1)",
+            color_continuous_scale="RdYlGn",
+            color_continuous_midpoint=0,
+            title="Изменение метрик: 2 семестр минус 1 семестр",
+        )
+        fig.add_vline(0, line_dash="dash", line_color="gray")
+        fig.update_layout(height=560, yaxis_title="", coloraxis_showscale=False)
+        st.plotly_chart(fig, width="stretch")
+
+    # ── Сравнение по программам для выбранной метрики ────────────────────────
+    st.markdown("### По программам")
+    metric = st.selectbox(
+        "Метрика для сравнения по программам",
+        options=available,
+        index=available.index("nps") if "nps" in available else 0,
+        format_func=lambda m: "CSI (общий)" if m == "csi_overall" else label(m),
+    )
+
+    def by_prog(d: pd.DataFrame) -> pd.Series:
+        if metric not in d.columns:
+            return pd.Series(dtype=float)
+        tmp = d.copy()
+        tmp[metric] = pd.to_numeric(tmp[metric], errors="coerce")
+        return tmp.groupby("program")[metric].mean()
+
+    g1, g2 = by_prog(s1).rename("1 семестр"), by_prog(s2).rename("2 семестр")
+    prog = pd.concat([g1, g2], axis=1).dropna(how="all")
+    if prog.empty:
+        st.info("Нет данных по выбранной метрике в разрезе программ.")
+        return
+    prog["Δ (2−1)"] = prog["2 семестр"] - prog["1 семестр"]
+    prog = prog.reset_index().rename(columns={"program": "Программа"})
+
+    long = prog.melt(
+        id_vars=["Программа"],
+        value_vars=["1 семестр", "2 семестр"],
+        var_name="Семестр",
+        value_name="Значение",
+    ).dropna(subset=["Значение"])
+    fig = px.bar(
+        long,
+        x="Значение",
+        y="Программа",
+        color="Семестр",
+        orientation="h",
+        barmode="group",
+        title=f"{'CSI (общий)' if metric == 'csi_overall' else label(metric)}: 1 vs 2 семестр по программам",
+        color_discrete_map={"1 семестр": "#94A3B8", "2 семестр": "#1D4ED8"},
+    )
+    fig.update_layout(height=680, yaxis_title="")
+    st.plotly_chart(fig, width="stretch")
+
+    st.caption("Таблица: значения по программам и изменение.")
+    st.dataframe(round_df(prog.sort_values("Δ (2−1)")), width="stretch", hide_index=True)
+
+
+def render_codebook(codebook_files: list[tuple[str, str]]) -> None:
+    st.subheader("Кодбук")
+    st.info("Что здесь: описание всех колонок и шкал в данных опроса (для выбранного семестра).")
+
+    # When both semesters are loaded, let the user pick which codebook to view.
+    if len(codebook_files) > 1:
+        labels = [lbl for lbl, _ in codebook_files]
+        chosen = st.radio("Кодбук какого семестра показать", labels, horizontal=True)
+        codebook_files = [(lbl, p) for lbl, p in codebook_files if lbl == chosen]
+
+    for lbl, path in codebook_files:
+        codebook = load_codebook(path)
+        if not codebook:
+            st.warning(f"Файл кодбука не найден: `{path}`.")
+            continue
+        st.caption(f"Источник: `{path}`")
+        st.markdown(codebook)
+
+
+SEMESTER_CONFIG = {
+    "1 семестр": {
+        # Канонический вывод notebooks/analysis.ipynb (без суффикса) — единый
+        # источник для 1 семестра, чтобы не плодить устаревающие копии.
+        "general": "combined_general_agg.csv",
+        "teachers": "data/processed/combined_teachers_agg.csv",
+        "codebook": "docs/codebook_sem1.md",
+        "title": "SFQ 2025-26: 1 семестр",
+    },
+    "2 семестр": {
+        "general": "combined_general_agg_sem2.csv",
+        "teachers": "data/processed/combined_teachers_agg_sem2.csv",
+        "codebook": "docs/codebook_sem2.md",
+        "title": "SFQ 2025-26: 2 семестр",
+    },
+}
+
+
+def normalize_unicode_columns(df: pd.DataFrame, cols: Iterable[str] = ("program", "year", "school", "teacher")) -> pd.DataFrame:
+    """Normalize key text columns to NFC.
+
+    Survey exports mix precomposed (NFC) and decomposed (NFD) Unicode for some
+    Cyrillic letters (e.g. «й» as и+◌̆). Without this, identical-looking program
+    names from different semesters are treated as distinct in concat/groupby/filters
+    and fail to match the enrollment table."""
+    for c in cols:
+        if c in df.columns and df[c].dtype == object:
+            df[c] = df[c].map(lambda v: unicodedata.normalize("NFC", v) if isinstance(v, str) else v)
+    return df
+
+
+@st.cache_data(show_spinner=False)
+def load_combined(paths: tuple[str, ...]) -> pd.DataFrame:
+    dfs = []
+    for p in paths:
+        if Path(p).exists():
+            dfs.append(pd.read_csv(p))
+    if not dfs:
+        return pd.DataFrame()
+    combined = pd.concat(dfs, ignore_index=True, sort=False)
+    combined = normalize_unicode_columns(combined)
+    if "date" in combined.columns:
+        combined["date"] = pd.to_datetime(combined["date"], format="%d.%m.%Y %H:%M:%S", errors="coerce")
+    return combined
 
 
 def main() -> None:
-    st.title("SFQ 2025-26: Semester A")
-    st.caption("Источник данных: `combined_general_agg.csv`")
+    st.sidebar.header("Семестр")
+    semester = st.sidebar.radio(
+        "Выберите данные",
+        ["1 семестр", "2 семестр", "Оба семестра"],
+        index=0,
+        help="Выберите семестр для анализа или объедините оба.",
+    )
+    st.sidebar.divider()
 
-    df = load_data("combined_general_agg.csv")
+    if semester == "Оба семестра":
+        general_paths = tuple(cfg["general"] for cfg in SEMESTER_CONFIG.values())
+        teacher_paths = tuple(cfg["teachers"] for cfg in SEMESTER_CONFIG.values())
+        codebook_files = [(name, cfg["codebook"]) for name, cfg in SEMESTER_CONFIG.items()]
+        title = "SFQ 2025-26: Оба семестра"
+        source_label = "combined_general_agg.csv + combined_general_agg_sem2.csv"
+    else:
+        cfg = SEMESTER_CONFIG[semester]
+        general_paths = (cfg["general"],)
+        teacher_paths = (cfg["teachers"],)
+        codebook_files = [(semester, cfg["codebook"])]
+        title = cfg["title"]
+        source_label = cfg["general"]
+
+    st.title(title)
+    st.caption(f"Источник данных: `{source_label}`")
+
+    if semester == "Оба семестра":
+        st.warning(
+            "Внимание: у части вопросов между семестрами изменилась шкала ответа. "
+            "**«Связь с предыдущим семестром»** и **«Уверенность в применении навыков»** "
+            "оценивались по шкале 1–5 в 1 семестре и 1–4 во 2 семестре, поэтому их "
+            "средние при объединении сравнивать некорректно. "
+            "Вопросы «Достижение целей», «Лёгкость ориентирования» и «Комфорт на занятиях» "
+            "(шкала 1–7) появились только во 2 семестре. "
+            "Ключевые показатели (NPS, CSI, удовлетворённость, блоки оценки/важности) "
+            "используют единые шкалы в обоих семестрах и сопоставимы."
+        )
+
+    df = load_combined(general_paths)
+    if df.empty:
+        st.error(f"Файлы данных не найдены: {general_paths}")
+        return
     df = safe_numeric(df, num_cols(df))
-    df_teachers = load_teachers_data("data/processed/combined_teachers_agg.csv")
+
+    df_teachers = load_combined(teacher_paths)
+    if not df_teachers.empty and "rating" in df_teachers.columns:
+        df_teachers["rating"] = pd.to_numeric(df_teachers["rating"], errors="coerce")
+        for col in ["program", "school", "year", "teacher"]:
+            if col not in df_teachers.columns:
+                df_teachers[col] = np.nan
 
     if "school" not in df.columns:
         st.warning("В файле нет столбца `school`. Фильтр по школам будет недоступен.")
@@ -1452,6 +1854,9 @@ def main() -> None:
     if dff.empty:
         st.error("После применения фильтров данных не осталось.")
         return
+
+    contingent = load_contingent()
+    cont_slice = filter_contingent(contingent, filters)
 
     dashboard_df = add_program_display(add_block_features(dff), short_labels=filters.short_program_labels)
     if not df_teachers.empty:
@@ -1467,28 +1872,30 @@ def main() -> None:
         teachers_df = pd.DataFrame()
 
     tabs = st.tabs(
-        ["Обзор", "Описательные", "Сравнение программ", "Корреляции", "Матрица приоритетов", "NPS", "CSI", "Преподаватели", "Комментарии", "Кодбук"]
+        ["Обзор", "Динамика", "Описательные", "Сравнение программ", "Корреляции", "Матрица приоритетов", "NPS", "CSI", "Преподаватели", "Комментарии", "Кодбук"]
     )
     with tabs[0]:
-        render_overview(dashboard_df)
+        render_overview(dashboard_df, cont_slice, combined_mode=(semester == "Оба семестра"))
     with tabs[1]:
-        render_descriptives(dashboard_df)
+        render_dynamics(filters, cont_slice)
     with tabs[2]:
-        render_program_comparison(dashboard_df)
+        render_descriptives(dashboard_df)
     with tabs[3]:
-        render_correlations(dashboard_df)
+        render_program_comparison(dashboard_df)
     with tabs[4]:
-        render_priority_matrix(dashboard_df)
+        render_correlations(dashboard_df)
     with tabs[5]:
-        render_nps(dashboard_df)
+        render_priority_matrix(dashboard_df)
     with tabs[6]:
-        render_csi(dashboard_df)
+        render_nps(dashboard_df)
     with tabs[7]:
-        render_teachers(teachers_df)
+        render_csi(dashboard_df)
     with tabs[8]:
-        render_comments(dashboard_df)
+        render_teachers(teachers_df)
     with tabs[9]:
-        render_codebook()
+        render_comments(dashboard_df)
+    with tabs[10]:
+        render_codebook(codebook_files)
 
 
 if __name__ == "__main__":

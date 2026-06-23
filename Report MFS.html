@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Feedback Questionnaire Analytics</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Lato', sans-serif;
+            color: #444;
+            background-color: #fafafa;
+        }
+        
+        h1, h2, h3, h4, .navbar-brand {
+            font-family: 'Lato', sans-serif;
+            font-weight: 700;
+            color: #111;
+        }
+
+        /* Navigation Styling */
+        .navbar {
+            padding: 1.5rem 0;
+            background-color: #ffffff;
+            border-bottom: 1px solid #eaeaea;
+        }
+        .navbar-brand {
+            font-size: 1.25rem;
+            letter-spacing: 0.5px;
+            font-weight: 900;
+        }
+        .nav-link {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            color: #666;
+            margin-left: 1.5rem;
+            transition: color 0.3s ease;
+        }
+        .nav-link:hover {
+            color: #000;
+        }
+
+        /* Hero / Header Section */
+        .hero-section {
+            padding: 6rem 0;
+            text-align: center;
+            background-color: #ffffff;
+            border-bottom: 1px solid #eaeaea;
+        }
+        .hero-title {
+            font-size: 3.5rem;
+            font-weight: 900;
+            line-height: 1.2;
+            margin-bottom: 1.5rem;
+            max-width: 900px;
+            margin-left: auto;
+            margin-right: auto;
+            letter-spacing: -0.5px;
+        }
+        .hero-subtitle {
+            font-size: 1.15rem;
+            color: #777;
+            font-weight: 300;
+            line-height: 1.8;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        /* Main Content Padding */
+        .main-content {
+            padding: 4rem 0;
+        }
+
+        /* Beautiful Cards Styling */
+        .card {
+            border-radius: 12px;
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            background-color: #ffffff;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 .5rem 1rem rgba(0,0,0,.08) !important;
+        }
+        .card-title {
+            font-weight: 900;
+            font-size: 1.15rem;
+            letter-spacing: 0.5px;
+            color: #111;
+        }
+        
+        /* DataTables Customisation */
+        table.dataTable thead th {
+            border-bottom: 2px solid #eaeaea !important;
+            font-size: 0.80rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #777;
+            padding-bottom: 1rem;
+        }
+        .table td {
+            font-size: 0.95rem;
+            color: #444;
+            border-bottom: 1px solid #f9f9f9;
+            padding: 1rem 0.5rem;
+        }
+        .dataTables_wrapper .row {
+            margin-bottom: 0;
+        }
+        
+        /* Category Bubble Helper */
+        .cat-bubble {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg sticky-top">
+        <div class="container">
+            <a class="navbar-brand" href="#">MFS Analytics</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#data-integrity">Data Integrity</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#instructors-overview">Instructors Overview</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#d-ipa-matrix">d-IPA Matrix</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <section class="hero-section">
+        <div class="container">
+            <h1 class="hero-title">Student Feedback Questionnaire Analytics</h1>
+            <p class="hero-subtitle">
+                <strong>Moscow Film School</strong><br>
+                Undergraduate Course in Film Production<br>
+                Academic Year 2025/2026, Autumn Semester
+            </p>
+        </div>
+    </section>
+
+    <main class="main-content container">
+        
+        <section id="data-integrity" class="mb-5 pt-3">
+            <div class="row mb-5">
+                <div class="col-12 text-center">
+                    <h2 class="fw-bold mb-3">Data Integrity</h2>
+                    <div style="width: 50px; height: 3px; background-color: #111; margin: 0 auto;"></div>
+                </div>
+            </div>
+
+            <div class="row g-4 mb-4">
+                <div class="col-lg-6">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body p-4">
+                            <h3 class="card-title mb-4">Survey Representativeness</h3>
+                            <div class="table-responsive">
+                                <table class="table table-hover datatable align-middle w-100">
+                                    <thead><tr><th>Year</th><th>Pop.</th><th>Sample</th><th>Resp. Rate</th><th>Sample %</th><th>Pop. %</th></tr></thead>
+                                    <tbody>
+                                        <tr><td>1 курс</td><td>67</td><td>12</td><td>18.0%</td><td>21.0%</td><td>41.0%</td></tr>
+                                        <tr><td>2 курс</td><td>55</td><td>31</td><td>56.0%</td><td>53.0%</td><td>34.0%</td></tr>
+                                        <tr><td>3 курс</td><td>29</td><td>14</td><td>48.0%</td><td>24.0%</td><td>18.0%</td></tr>
+                                        <tr><td>4 курс</td><td>12</td><td>1</td><td>8.0%</td><td>2.0%</td><td>7.0%</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body p-4">
+                            <h3 class="card-title mb-4">Responses by Day</h3>
+                            <div class="table-responsive">
+                                <table class="table table-hover datatable align-middle w-100">
+                                    <thead><tr><th>Date</th><th>Responses</th><th>Sample</th><th>%</th><th>Cum. %</th></tr></thead>
+                                    <tbody>
+                                        <tr><td>2026-02-16</td><td>22</td><td>58</td><td>38.0%</td><td>38.0%</td></tr>
+                                        <tr><td>2026-02-17</td><td>10</td><td>58</td><td>17.0%</td><td>55.0%</td></tr>
+                                        <tr><td>2026-02-18</td><td>3</td><td>58</td><td>5.0%</td><td>60.0%</td></tr>
+                                        <tr><td>2026-02-19</td><td>1</td><td>58</td><td>2.0%</td><td>62.0%</td></tr>
+                                        <tr><td>2026-02-27</td><td>14</td><td>58</td><td>24.0%</td><td>86.0%</td></tr>
+                                        <tr><td>2026-02-28</td><td>6</td><td>58</td><td>10.0%</td><td>96.0%</td></tr>
+                                        <tr><td>2026-03-01</td><td>1</td><td>58</td><td>2.0%</td><td>98.0%</td></tr>
+                                        <tr><td>2026-03-02</td><td>1</td><td>58</td><td>2.0%</td><td>100.0%</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-lg-7">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body p-4">
+                            <h3 class="card-title mb-4">Responses by Time</h3>
+                            <div class="table-responsive">
+                                <table class="table table-hover datatable align-middle w-100">
+                                    <thead><tr><th>Year</th><th>N</th><th>Mean</th><th>SD</th><th>Median</th><th>IQR</th><th>Min</th><th>Max</th></tr></thead>
+                                    <tbody>
+                                        <tr><td>1 курс</td><td>12</td><td>110.96</td><td>356.57</td><td>5.23</td><td>8.68</td><td>2.63</td><td>1243.02</td></tr>
+                                        <tr><td>2 курс</td><td>31</td><td>250.70</td><td>886.59</td><td>9.42</td><td>9.28</td><td>2.92</td><td>4624.60</td></tr>
+                                        <tr><td>3 курс</td><td>14</td><td>43.99</td><td>119.73</td><td>10.29</td><td>3.35</td><td>3.42</td><td>459.20</td></tr>
+                                        <tr><td>4 курс</td><td>1</td><td>7.05</td><td>N/A</td><td>7.05</td><td>0.00</td><td>7.05</td><td>7.05</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-5">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body p-4">
+                            <h3 class="card-title mb-4">Non-response by Question</h3>
+                            <div class="table-responsive">
+                                <table class="table table-hover datatable align-middle w-100">
+                                    <thead><tr><th>Question</th><th>Missing (%)</th></tr></thead>
+                                    <tbody>
+                                        <tr><td>Y3_Confidence</td><td>69.0%</td></tr>
+                                        <tr><td>Y2_Coherence</td><td>31.0%</td></tr>
+                                        <tr><td>Infra_Wellbeing</td><td>20.0%</td></tr>
+                                        <tr><td>Infra_Equipment</td><td>7.0%</td></tr>
+                                        <tr><td>Infra_Soft</td><td>7.0%</td></tr>
+                                        <tr><td>Infra_Baseroom</td><td>4.0%</td></tr>
+                                        <tr><td>Infra_Class</td><td>4.0%</td></tr>
+                                        <tr><td>Infra_Library</td><td>4.0%</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="instructors-overview" class="mb-5 pt-5 border-top">
+            <div class="row mb-5">
+                <div class="col-12 text-center">
+                    <h2 class="fw-bold mb-3">Instructors Overview</h2>
+                    <div style="width: 50px; height: 3px; background-color: #111; margin: 0 auto;"></div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body p-4">
+                            <div id="instructor-chart" style="width: 100%; height: 600px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body p-4">
+                            <h3 class="card-title mb-4">Instructor Performance Matrix</h3>
+                            <div class="table-responsive">
+                                <table class="table table-hover datatable align-middle w-100">
+                                    <thead>
+                                        <tr>
+                                            <th>Instructor</th>
+                                            <th>N (Sample)</th>
+                                            <th>Score (Mean)</th>
+                                            <th>Variation (SD)</th>
+                                            <th>Confidence Interval</th>
+                                            <th>Category</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td>Камилл Ахметов</td><td>31</td><td>90.97</td><td>15.57</td><td>[85.26 - 96.68]</td><td><span class="cat-bubble" style="background-color: #6b9080;"></span>Stars</td></tr>
+                                        <tr><td>Александр Боковиков</td><td>45</td><td>89.56</td><td>23.25</td><td>[82.57 - 96.54]</td><td><span class="cat-bubble" style="background-color: #6b9080;"></span>Stars</td></tr>
+                                        <tr><td>Аддис Гаджиев</td><td>45</td><td>86.00</td><td>26.66</td><td>[77.99 - 94.01]</td><td><span class="cat-bubble" style="background-color: #6b9080;"></span>Stars</td></tr>
+                                        <tr><td>Виктор Чуняев</td><td>45</td><td>83.78</td><td>29.33</td><td>[74.97 - 92.59]</td><td><span class="cat-bubble" style="background-color: #6b9080;"></span>Stars</td></tr>
+                                        <tr><td>Михаил Фатахов</td><td>31</td><td>78.39</td><td>22.52</td><td>[70.13 - 86.65]</td><td><span class="cat-bubble" style="background-color: #6b9080;"></span>Stars</td></tr>
+                                        <tr><td>Александр Феденёв</td><td>31</td><td>73.87</td><td>31.69</td><td>[62.25 - 85.5]</td><td><span class="cat-bubble" style="background-color: #d4a373;"></span>Polarising</td></tr>
+                                        <tr><td>Пиманова Алена</td><td>31</td><td>72.90</td><td>31.43</td><td>[61.37 - 84.43]</td><td><span class="cat-bubble" style="background-color: #d4a373;"></span>Polarising</td></tr>
+                                        <tr><td>Е Михайлова</td><td>14</td><td>70.71</td><td>42.15</td><td>[46.38 - 95.05]</td><td><span class="cat-bubble" style="background-color: #d4a373;"></span>Polarising</td></tr>
+                                        <tr><td>Алексей Попогребский</td><td>14</td><td>65.71</td><td>43.63</td><td>[40.52 - 90.9]</td><td><span class="cat-bubble" style="background-color: #d4a373;"></span>Polarising</td></tr>
+                                        <tr><td>Н Зайцева</td><td>14</td><td>62.86</td><td>43.04</td><td>[38 - 87.71]</td><td><span class="cat-bubble" style="background-color: #d4a373;"></span>Polarising</td></tr>
+                                        <tr><td>Наталья Тетенова</td><td>45</td><td>58.44</td><td>33.91</td><td>[48.26 - 68.63]</td><td><span class="cat-bubble" style="background-color: #84758d;"></span>Inconsistent</td></tr>
+                                        <tr><td>Дмитрий Кабаков</td><td>14</td><td>52.86</td><td>45.31</td><td>[26.7 - 79.02]</td><td><span class="cat-bubble" style="background-color: #84758d;"></span>Inconsistent</td></tr>
+                                        <tr><td>Г Курдяев</td><td>14</td><td>32.86</td><td>41.40</td><td>[8.95 - 56.76]</td><td><span class="cat-bubble" style="background-color: #84758d;"></span>Inconsistent</td></tr>
+                                        <tr><td>Юрий Мартынов</td><td>14</td><td>32.14</td><td>46.44</td><td>[5.33 - 58.96]</td><td><span class="cat-bubble" style="background-color: #84758d;"></span>Inconsistent</td></tr>
+                                        <tr><td>Максимиллиан Андреев</td><td>14</td><td>27.14</td><td>34.07</td><td>[7.47 - 46.81]</td><td><span class="cat-bubble" style="background-color: #84758d;"></span>Inconsistent</td></tr>
+                                        <tr><td>Денис Родимин</td><td>45</td><td>45.33</td><td>30.50</td><td>[36.17 - 54.5]</td><td><span class="cat-bubble" style="background-color: #c1666b;"></span>Underperforming</td></tr>
+                                        <tr><td>Иван Поморин</td><td>45</td><td>37.56</td><td>30.31</td><td>[28.45 - 46.66]</td><td><span class="cat-bubble" style="background-color: #c1666b;"></span>Underperforming</td></tr>
+                                        <tr><td>Екатерина Шагалова</td><td>31</td><td>36.45</td><td>29.05</td><td>[25.8 - 47.11]</td><td><span class="cat-bubble" style="background-color: #c1666b;"></span>Underperforming</td></tr>
+                                        <tr><td>Андрей Щербович-Вечер</td><td>14</td><td>36.43</td><td>31.28</td><td>[18.37 - 54.49]</td><td><span class="cat-bubble" style="background-color: #c1666b;"></span>Underperforming</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="d-ipa-matrix" class="mb-5 pt-5 border-top">
+            <div class="row mb-5">
+                <div class="col-12 text-center">
+                    <h2 class="fw-bold mb-3">d-IPA Matrix</h2>
+                    <div style="width: 50px; height: 3px; background-color: #111; margin: 0 auto;"></div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body p-4">
+                            <div id="ipa-chart" style="width: 100%; height: 600px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+
+    <script>
+        $(document).ready(function() {
+            // Initialise sortable DataTables
+            $('.datatable').DataTable({
+                paging: false,      
+                searching: false,   
+                info: false,        
+                order: []           
+            });
+
+            // ----------------------------------------------------
+            // 1. PLOTLY CHART: INSTRUCTORS OVERVIEW
+            // ----------------------------------------------------
+            var trace_stars = {
+                x: [90.97, 89.56, 86.0, 83.78, 78.39], y: [15.57, 23.25, 26.66, 29.33, 22.52],
+                text: ["Камилл Ахметов", "Александр Боковиков", "Аддис Гаджиев", "Виктор Чуняев", "Михаил Фатахов"],
+                mode: 'markers+text', type: 'scatter', name: 'Stars',
+                marker: { size: 16, color: '#6b9080', line: {width: 1, color: '#ffffff'} },
+                textposition: 'top center', textfont: { family: 'Lato, sans-serif', size: 11, color: '#444' }, hoverinfo: 'text', hovertemplate: '<b>%{text}</b><br>Score: %{x:.2f}<br>Deviation: %{y:.2f}<extra></extra>'
+            };
+            var trace_polarising = {
+                x: [73.87, 72.9, 70.71, 65.71, 62.86], y: [31.69, 31.43, 42.15, 43.63, 43.04],
+                text: ["Александр Феденёв", "Пиманова Алена", "Е Михайлова", "Алексей Попогребский", "Н Зайцева"],
+                mode: 'markers+text', type: 'scatter', name: 'Polarising',
+                marker: { size: 16, color: '#d4a373', line: {width: 1, color: '#ffffff'} },
+                textposition: 'top center', textfont: { family: 'Lato, sans-serif', size: 11, color: '#444' }, hoverinfo: 'text', hovertemplate: '<b>%{text}</b><br>Score: %{x:.2f}<br>Deviation: %{y:.2f}<extra></extra>'
+            };
+            var trace_inconsistent = {
+                x: [58.44, 52.86, 32.86, 32.14, 27.14], y: [33.91, 45.31, 41.4, 46.44, 34.07],
+                text: ["Наталья Тетенова", "Дмитрий Кабаков", "Г Курдяев", "Юрий Мартынов", "Максимиллиан Андреев"],
+                mode: 'markers+text', type: 'scatter', name: 'Inconsistent',
+                marker: { size: 16, color: '#84758d', line: {width: 1, color: '#ffffff'} },
+                textposition: 'top center', textfont: { family: 'Lato, sans-serif', size: 11, color: '#444' }, hoverinfo: 'text', hovertemplate: '<b>%{text}</b><br>Score: %{x:.2f}<br>Deviation: %{y:.2f}<extra></extra>'
+            };
+            var trace_underperforming = {
+                x: [45.33, 37.56, 36.45, 36.43], y: [30.5, 30.31, 29.05, 31.28],
+                text: ["Денис Родимин", "Иван Поморин", "Екатерина Шагалова", "Андрей Щербович-Вечер"],
+                mode: 'markers+text', type: 'scatter', name: 'Underperforming',
+                marker: { size: 16, color: '#c1666b', line: {width: 1, color: '#ffffff'} },
+                textposition: 'top center', textfont: { family: 'Lato, sans-serif', size: 11, color: '#444' }, hoverinfo: 'text', hovertemplate: '<b>%{text}</b><br>Score: %{x:.2f}<br>Deviation: %{y:.2f}<extra></extra>'
+            };
+            
+            var instLayout = {
+                showlegend: false, hovermode: 'closest',
+                xaxis: { title: 'Score (Mean) →', gridcolor: '#f0f0f0', zeroline: false, tickfont: { family: 'Lato, sans-serif' }, titlefont: { family: 'Lato, sans-serif', size: 14, color: '#777' } },
+                yaxis: { title: 'Variation (SD) →', gridcolor: '#f0f0f0', zeroline: false, tickfont: { family: 'Lato, sans-serif' }, titlefont: { family: 'Lato, sans-serif', size: 14, color: '#777' } },
+                plot_bgcolor: 'rgba(0,0,0,0)', paper_bgcolor: 'rgba(0,0,0,0)', margin: { t: 40, l: 60, r: 40, b: 60 },
+                shapes: [ 
+                    { type: 'line', x0: 60.65, x1: 60.65, y0: 10, y1: 50, line: { color: '#ccc', width: 2, dash: 'dash' } }, 
+                    { type: 'line', x0: 20, x1: 100, y0: 31.35, y1: 31.35, line: { color: '#ccc', width: 2, dash: 'dash' } } 
+                ]
+            };
+            Plotly.newPlot('instructor-chart', [trace_stars, trace_polarising, trace_inconsistent, trace_underperforming], instLayout, { responsive: true, displayModeBar: false });
+
+            // ----------------------------------------------------
+            // 2. PLOTLY CHART: d-IPA MATRIX
+            // ----------------------------------------------------
+            var trace_keep_up = {
+                x: [65.93, 80.74, 65.19, 80.62, 66.67, 68.89], y: [0.441, 0.327, 0.275, 0.296, 0.389, 0.532],
+                text: ["Assess Fairness", "Coord Respect", "Coord Result", "Infra Baseroom", "Infra Wellbeing", "Prog Industry"],
+                mode: 'markers+text', type: 'scatter', name: 'Keep Up Good Work',
+                marker: { size: 16, color: '#6b9080', line: {width: 1, color: '#ffffff'} },
+                textposition: 'top center', textfont: { family: 'Lato, sans-serif', size: 11, color: '#444' }, hoverinfo: 'text', hovertemplate: '<b>%{text}</b><br>Performance: %{x:.2f}<br>Importance: %{y:.3f}<extra></extra>'
+            };
+            var trace_concentrate = {
+                x: [48.15, 59.26, 57.04, 62.96, 50.37], y: [0.428, 0.524, 0.367, 0.481, 0.629],
+                text: ["Assess Rules", "Prog Content", "Prog Workload", "Team Clarity", "Team Support"],
+                mode: 'markers+text', type: 'scatter', name: 'Concentrate Here',
+                marker: { size: 16, color: '#c1666b', line: {width: 1, color: '#ffffff'} },
+                textposition: 'top center', textfont: { family: 'Lato, sans-serif', size: 11, color: '#444' }, hoverinfo: 'text', hovertemplate: '<b>%{text}</b><br>Performance: %{x:.2f}<br>Importance: %{y:.3f}<extra></extra>'
+            };
+            var trace_overkill = {
+                x: [68.89, 68.15, 77.52, 66.67, 75.19], y: [0.179, 0.223, 0.241, 0.129, 0.171],
+                text: ["Coord Helpful", "Curator Helpful", "Infra Class", "Infra Equipment", "Infra Library"],
+                mode: 'markers+text', type: 'scatter', name: 'Possible Overkill',
+                marker: { size: 16, color: '#d4a373', line: {width: 1, color: '#ffffff'} },
+                textposition: 'top center', textfont: { family: 'Lato, sans-serif', size: 11, color: '#444' }, hoverinfo: 'text', hovertemplate: '<b>%{text}</b><br>Performance: %{x:.2f}<br>Importance: %{y:.3f}<extra></extra>'
+            };
+            var trace_low_priority = {
+                x: [53.33, 38.52, 48.15, 42.22, 63.49, 57.78], y: [0.254, 0.113, 0.248, 0.079, 0.246, 0.217],
+                text: ["Assess Criteria", "Coord Info", "Curator Info", "Infra Food", "Infra Soft", "Prog Deadlines"],
+                mode: 'markers+text', type: 'scatter', name: 'Low Priority',
+                marker: { size: 16, color: '#84758d', line: {width: 1, color: '#ffffff'} },
+                textposition: 'top center', textfont: { family: 'Lato, sans-serif', size: 11, color: '#444' }, hoverinfo: 'text', hovertemplate: '<b>%{text}</b><br>Performance: %{x:.2f}<br>Importance: %{y:.3f}<extra></extra>'
+            };
+
+            var ipaLayout = {
+                showlegend: false, hovermode: 'closest',
+                xaxis: { title: 'Performance (Mean) →', gridcolor: '#f0f0f0', zeroline: false, range: [35, 85], tickfont: { family: 'Lato, sans-serif' }, titlefont: { family: 'Lato, sans-serif', size: 14, color: '#777' } },
+                yaxis: { title: 'Importance (Correlation) →', gridcolor: '#f0f0f0', zeroline: false, range: [0, 0.7], tickfont: { family: 'Lato, sans-serif' }, titlefont: { family: 'Lato, sans-serif', size: 14, color: '#777' } },
+                plot_bgcolor: 'rgba(0,0,0,0)', paper_bgcolor: 'rgba(0,0,0,0)', margin: { t: 40, l: 60, r: 40, b: 60 },
+                shapes: [ 
+                    { type: 'line', x0: 64.3, x1: 64.3, y0: 0, y1: 0.7, line: { color: '#ccc', width: 2, dash: 'dash' } }, 
+                    { type: 'line', x0: 35, x1: 85, y0: 0.265, y1: 0.265, line: { color: '#ccc', width: 2, dash: 'dash' } } 
+                ]
+            };
+            Plotly.newPlot('ipa-chart', [trace_keep_up, trace_concentrate, trace_overkill, trace_low_priority], ipaLayout, { responsive: true, displayModeBar: false });
+        });
+    </script>
+</body>
+</html>
